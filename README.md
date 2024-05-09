@@ -1,3 +1,3 @@
-# Vela (Temporay Name)
+# OpenVela
 
 ## Objectives
