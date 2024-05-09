@@ -1,2 +1,3 @@
-# vela
-Webera's Open Source Agent Framework
+# Vela (Temporay Name)
+
+## Objectives
