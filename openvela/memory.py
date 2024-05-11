@@ -2,6 +2,7 @@ import json
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
+from typing import Type
 
 
 class ShortTermMemory(ABC):
@@ -12,6 +13,29 @@ class ShortTermMemory(ABC):
     @abstractmethod
     def recall(self) -> list:
         pass
+
+
+class MemoryManager:
+    def __init__(
+        self, memory_class: Type[ShortTermMemory], initial_prompt: str, *args, **kwargs
+    ):
+        self.memory = memory_class(*args, **kwargs)
+        self.current_prompt = initial_prompt
+        self.memory.clear_memory()
+        self.memory.remember("system", f"Prompt: {self.current_prompt}")
+
+    def update_prompt(self, new_prompt: str):
+        self.current_prompt = new_prompt
+        self.memory.remember("system", f"Prompt changed to: {self.current_prompt}")
+
+    def add_user_message(self, message: str):
+        self.memory.remember("user", message)
+
+    def add_assistant_message(self, message: str):
+        self.memory.remember("assistant", message)
+
+    def get_conversation_history(self):
+        return self.memory.recall()
 
 
 @dataclass
