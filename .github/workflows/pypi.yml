@@ -38,8 +38,8 @@ jobs:
     environment:
       name: pypi
       url: https://pypi.org/p/openvela # Replace <package-name> with your PyPI project name
-    permissions:
-      id-token: write # IMPORTANT: mandatory for trusted publishing
+    # permissions:
+    #   id-token: write # IMPORTANT: mandatory for trusted publishing
 
     steps:
       - name: Download all the dists
@@ -49,6 +49,9 @@ jobs:
           path: dist/
       - name: Publish distribution 📦 to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          user: joelzamboni
+          password: ${{ secrets.PYPI_PASSWORD }}
 
   github-release:
     name: >-
