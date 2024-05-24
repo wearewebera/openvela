@@ -50,7 +50,7 @@ jobs:
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           user: joelzamboni
-          password: ${{ secrets.PYPI_PASSWORD }}
+          password: ${{ secrets.PYPI_TOKEN }}
 
   github-release:
     name: >-
