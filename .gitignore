@@ -3,5 +3,4 @@
 **/.DS_Store
 dist/
 
-
-app.log
+**/*.log
