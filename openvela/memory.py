@@ -3,7 +3,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Type
 
-from .messages import Message, SystemMessage
+from messages import Message, SystemMessage
 
 
 class ShortTermMemory(ABC):

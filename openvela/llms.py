@@ -6,9 +6,9 @@ from typing import Any, Dict, Literal, Mapping, Optional, Sequence, TypedDict
 from ollama import Client
 from openai import OpenAI
 
-from .files import AudioFile, ImageFile
-from .messages import AssistantMessage, Message, UserMessage
-from .tools import AIFunctionTool
+from files import AudioFile, ImageFile
+from messages import AssistantMessage, Message, UserMessage
+from tools import AIFunctionTool
 
 
 class Model(ABC):
