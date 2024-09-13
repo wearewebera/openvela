@@ -1,8 +1,9 @@
 import json
-
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Type
+
+from .messages import Message, SystemMessage
 
 
 class ShortTermMemory(ABC):
@@ -26,10 +27,10 @@ class SimpleShortTermMemory(ShortTermMemory):
     messages: list = field(default_factory=list)
 
     def remember(self, role, content):
-        self.messages.append({"role": role, "content": content})
+        self.messages.append(Message(role=role, content=content))
 
     def recall(self):
-        self.messages.insert(0, {"role": "system", "content": self.prompt})
+        self.messages.insert(0, {SystemMessage(role="system", content=self.prompt)})
         return self.messages
 
     def clear_memory(self):

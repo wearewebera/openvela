@@ -2,12 +2,13 @@
 name = "openvela"
 version = "0.1.2"
 description = ""
-authors = ["Joel Zamboni <joel.zamboni@webera.com>"]
+authors = ["Joel Zamboni <joel.zamboni@webera.com>", "Augusto Izepon <"augusto.izepon@webera.com>"]
 readme = "README.md"
 
 [tool.poetry.dependencies]
 python = "^3.12"
 ollama = "^0.1.9"
+pillow = "^10.4.0"
 
 
 [build-system]
