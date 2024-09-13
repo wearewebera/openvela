@@ -2,10 +2,10 @@ import logging
 from dataclasses import dataclass, field
 from typing import Optional, Required
 
-from .llms import Model, OllamaModel
-from .memory import JSONShortTermMemory, ShortTermMemory
-from .messages import SystemMessage
-from .tools import AIFunctionTool
+from llms import Model, OllamaModel
+from memory import JSONShortTermMemory, ShortTermMemory
+from messages import SystemMessage
+from tools import AIFunctionTool
 
 
 @dataclass
