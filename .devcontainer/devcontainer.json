@@ -1,0 +1,9 @@
+{
+	"name": "OpenVela Dev",
+	"build": {
+        "dockerfile": "Dockerfile"
+    },
+    // Use 'postCreateCommand' to run commands after the container is created.
+    "postCreateCommand": "poetry install --no-dev"
+
+}
