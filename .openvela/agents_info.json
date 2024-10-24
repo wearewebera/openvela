@@ -1,0 +1,7 @@
+{
+    "agents_info": {
+        "StartAgent": "Please provide an overview of the task. \n Please provide an step by step of how to finish the task, from beggining to end.",
+        "EndAgent": "Based on previous messages, you are responsible for providing the final output. \n Please provide the most complete and accurate answer. The final output contains All the information of the conversation that is related with the main task\n ",
+        "SupervisorAgent": "Oversee the workflow and ensure all aspects are covered."
+    }
+}
