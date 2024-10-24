@@ -261,7 +261,7 @@ class FluidAgent(Agent):
             print(agents_json)
             return agents_json.get("agents", [])
         except json.JSONDecodeError:
-            logging.error("Failed to decode agents JSON.")
+            logging.error("Failed to decode agents JSON .")
             return []
 
     def create_agents(
