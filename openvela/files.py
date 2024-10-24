@@ -20,7 +20,6 @@ class OpenVelaAudioFile(File):
                 with wave.open(path, "rb") as audio_file:
                     return audio_file.readframes(audio_file.getnframes())
             else:
-
                 with open(path, "rb") as f:
                     return f.read()
         except Exception as e:

@@ -6,9 +6,9 @@ from typing import Any, Dict, Literal, Mapping, Optional, Sequence, TypedDict
 from ollama import Client
 from openai import OpenAI
 
-from files import AudioFile, ImageFile
-from messages import AssistantMessage, Message, UserMessage
-from tools import AIFunctionTool
+from openvela.files import OpenVelaAudioFile, OpenVelaImageFile
+from openvela.messages import Message, UserMessage
+from openvela.tools import AIFunctionTool
 
 
 class Model(ABC):
@@ -19,6 +19,7 @@ class Model(ABC):
         files: Optional[list[Dict[str, Any]]] = None,
         tools: Optional[list[AIFunctionTool]] = None,
         tool_choice: Optional[str] = None,
+        format: Optional[str] = None,
     ) -> str:
         pass
 
@@ -44,10 +45,10 @@ class Model(ABC):
         converted_files = []
         for file in files:
             if file["type"] == "audio":
-                audio_file = AudioFile(file["path"])
+                audio_file = OpenVelaAudioFile(file["path"])
                 converted_files.append(audio_file.read())
             elif file["type"] == "image":
-                image_file = ImageFile(file["path"])
+                image_file = OpenVelaImageFile(file["path"])
                 converted_files.append(image_file.read())
             else:
                 logging.warning(f"Unknown file type: {file['type']}")
@@ -68,10 +69,10 @@ class OllamaModel(Model):
     host: str = "localhost"
     port: int = 11434
     client: Client = field(init=False)
-    model: str = "mistral"
+    model: str = "llama3.2"
 
     def __post_init__(self):
-        self.client = Client(f"http://{self.host}:{self.port}")
+        self.client = Client(f"http://{self.host}:{self.port}/")
         logging.info(f"OllamaModel initialized with host: {self.host}")
 
     def generate_response(
@@ -80,6 +81,8 @@ class OllamaModel(Model):
         files: Optional[list[Dict[str, Any]]] = None,
         tools: Optional[AIFunctionTool] = None,
         tool_choice: Optional[str] = None,
+        format: Optional[str] = "",
+        options: Optional[Dict[str, Any]] = {"num_ctx": 8192},
     ) -> str:
         converted_messages = self._convert_to_messages(messages)
         selected_tools = (
@@ -89,6 +92,8 @@ class OllamaModel(Model):
             model=self.model,
             messages=converted_messages,
             tools=selected_tools,
+            options=options,
+            format=format,
         )
         response_mapping: Mapping[str, Any] = next(iter([response]))
         return response_mapping["message"]["content"]
