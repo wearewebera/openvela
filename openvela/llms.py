@@ -1,8 +1,10 @@
 import logging
+import os
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Any, Dict, Literal, Mapping, Optional, Sequence, TypedDict
 
+from groq import Groq
 from ollama import Client
 from openai import OpenAI
 
@@ -66,10 +68,10 @@ class Model(ABC):
 
 @dataclass
 class OllamaModel(Model):
-    host: str = "localhost"
+    host: str = "10.50.0.11"
     port: int = 11434
     client: Client = field(init=False)
-    model: str = "llama3.2"
+    model: str = "llama3.1:70b"
 
     def __post_init__(self):
         self.client = Client(f"http://{self.host}:{self.port}/")
@@ -146,3 +148,39 @@ class OpenAIModel(Model):
         )
         response_mapping: Mapping[str, Any] = next(iter([response]))
         return response_mapping["text"]
+
+
+@dataclass
+class GroqModel(Model):
+    host: str = "10.50.0.11"
+    port: int = 11434
+    client: Groq = field(init=False)
+    model: str = "llama3.1:70b"
+
+    def __post_init__(self):
+        self.client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
+
+        logging.info(f"OllamaModel initialized with host: {self.host}")
+
+    def generate_response(
+        self,
+        messages: list[dict],
+        files: Optional[list[Dict[str, Any]]] = None,
+        tools: Optional[AIFunctionTool] = None,
+        tool_choice: Optional[str] = None,
+        format: Optional[str] = "",
+        options: Optional[Dict[str, Any]] = {"num_ctx": 8192},
+    ) -> str:
+        converted_messages = self._convert_to_messages(messages)
+        selected_tools = (
+            self._functions_by_choices(tools, tool_choice) if tools else None
+        )
+        response = self.client.chat.completions.create(
+            model=self.model,
+            messages=converted_messages,
+            tools=selected_tools,
+            max_tokens=options["max_tokens"],
+            response_format=format,
+        )
+        response_mapping: Mapping[str, Any] = next(iter([response]))
+        return response_mapping["message"]["content"]
