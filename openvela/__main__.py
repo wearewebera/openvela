@@ -1,158 +1,76 @@
+# __main__.py
+
+import argparse
+import getpass
 import logging
+from typing import Optional
 
 # Import classes from your library
 from agents import Agent, EndAgent, FluidAgent, StartAgent, SupervisorAgent
+from llms import GroqModel, Model, OllamaModel, OpenAIModel  # Ensure Model is imported
 from logs import configure_logging
 from memory import JsonReader
 from tasks import Task
-from workflows import (
-    ChainOfThoughtWorkflow,
-    FluidChainOfThoughtWorkflow,
-    TreeOfThoughtWorkflow,
-)
+from workflows import FluidChainOfThoughtWorkflow
 
 
-def test_chain_of_thought_workflow():
-    print("Testing ChainOfThoughtWorkflow...\n")
-    # Configure logging
-    configure_logging()
+def get_model_instance(
+    model_choice: str, api_key: Optional[str] = None, url: Optional[str] = None
+) -> Model:
+    """
+    Instantiate and return the selected model with provided credentials.
 
-    # Define agents with specific prompts
-    start_agent = StartAgent(
-        settings={
-            "name": "StartAgent",
-            "prompt": "You are the StartAgent. Begin the task by introducing the main character.",
-        }
-    )
+    Args:
+        model_choice (str): The model to instantiate. Choices are 'openai', 'groq', or 'ollama'.
+        api_key (Optional[str]): API key for OpenAI or Groq models. If None, prompts the user securely.
+        url (Optional[str]): URL for Ollama model. Defaults to 'http://localhost:11434/' if None.
 
-    middle_agent = Agent(
-        settings={
-            "name": "MiddleAgent",
-            "prompt": "You are the MiddleAgent. Develop the plot by introducing challenges.",
-        }
-    )
+    Returns:
+        Model: An instance of the selected model.
 
-    end_agent = EndAgent(
-        settings={
-            "name": "EndAgent",
-            "prompt": "You are the EndAgent. Conclude the story by resolving the challenges.",
-        }
-    )
-
-    supervisor_agent = SupervisorAgent(
-        settings={
-            "name": "SupervisorAgent",
-            "prompt": "Ensure the story flows logically and each agent contributes appropriately.",
-        },
-        start_agent=start_agent,
-        end_agent=end_agent,
-        agents=[middle_agent],
-    )
-
-    # Define the task
-    task = Task(
-        agents=[
-            "StartAgent",
-            "MiddleAgent",
-            "EndAgent",
-        ],
-        prompt="Create a story about a brave knight on a quest to find a mythical treasure.",
-    )
-
-    # Create the workflow
-    workflow = ChainOfThoughtWorkflow(
-        task=task,
-        agents=[middle_agent],
-        supervisor=supervisor_agent,
-        start_agent=start_agent,
-        end_agent=end_agent,
-    )
-
-    # Run the workflow
-    final_output = workflow.run()
-    print("Final Story:\n")
-    print(final_output)
-
-    # Optionally, print the message history
-    print("\nMessage History:")
-    for message in workflow.memory.messages:
-        print(f"{message['role']}: {message['content']}")
-
-    # Use JsonReader to load the data
-    json_reader = JsonReader(file_path=".openvela/workflow_memory.json")
-    data_dict = json_reader.json_to_dict()
-    print("\nData from JsonReader:")
-    print(data_dict)
+    Raises:
+        ValueError: If an unsupported model_choice is provided.
+    """
+    if model_choice.lower() == "openai":
+        if not api_key:
+            api_key = getpass.getpass(prompt="Enter your OpenAI API Key: ")
+        return OpenAIModel(api_key=api_key)
+    elif model_choice.lower() == "groq":
+        if not api_key:
+            api_key = getpass.getpass(prompt="Enter your Groq API Key: ")
+        return GroqModel(api_key=api_key)
+    elif model_choice.lower() == "ollama":
+        if not url:
+            url = (
+                input("Enter Ollama URL (default: http://localhost:11434/): ")
+                or "http://localhost:11434/"
+            )
+        return OllamaModel(
+            host=url.split("://")[-1].split(":")[0]
+        )  # Extract host from URL
+    else:
+        raise ValueError(
+            "Unsupported model choice. Please select from OpenAI, Groq, or Ollama."
+        )
 
 
-def test_tree_of_thought_workflow():
-    print("\nTesting TreeOfThoughtWorkflow...\n")
-    # Configure logging
-    configure_logging()
+def test_fluid_chain_of_thought_workflow(
+    model: Model, task_description: str, verbose: bool
+):
+    """
+    Set up and run the FluidChainOfThoughtWorkflow with the selected model and task.
 
-    # Define agents
-    start_agent = StartAgent(
-        settings={
-            "name": "StartAgent",
-            "prompt": "You are the StartAgent. Propose several ideas for a new app.",
-        }
-    )
-
-    end_agent = EndAgent(
-        settings={
-            "name": "EndAgent",
-            "prompt": "You are the EndAgent. Select the best idea and elaborate on it.",
-        }
-    )
-
-    supervisor_agent = SupervisorAgent(
-        settings={
-            "name": "SupervisorAgent",
-            "prompt": "Evaluate the proposed ideas and select the most promising ones.",
-        },
-        start_agent=start_agent,
-        end_agent=end_agent,
-    )
+    Args:
+        model (Model): The instantiated language model to use.
+        task_description (str): The description of the task to execute.
+        verbose (bool): Flag to enable verbose logging.
+    """
+    if verbose:
+        logging.getLogger().setLevel(logging.DEBUG)
+    else:
+        logging.getLogger().setLevel(logging.INFO)
 
     # Define the task
-    task = Task(
-        agents=[
-            "StartAgent",
-            "EndAgent",
-        ],
-        prompt="Brainstorm ideas for a mobile app that can help improve productivity.",
-    )
-
-    # Create the workflow
-    workflow = TreeOfThoughtWorkflow(
-        task=task,
-        agents=[],
-        supervisor=supervisor_agent,
-        start_agent=start_agent,
-        end_agent=end_agent,
-    )
-
-    # Run the workflow
-    final_output = workflow.run()
-    print("Final Output:\n")
-    print(final_output)
-
-    # Optionally, print the message history
-    print("\nMessage History:")
-    for message in workflow.memory.messages:
-        print(f"{message['role']}: {message['content']}")
-
-
-def test_fluid_chain_of_thought_workflow():
-    print("\nTesting FluidChainOfThoughtWorkflow...\n")
-    # Configure logging
-    configure_logging()
-
-    # Define the task
-    task_description = (
-        """give me the full code of how to create a model like trocr from microsoft"""
-    )
-
     task = Task(
         agents=[
             "StartAgent",
@@ -173,15 +91,18 @@ def test_fluid_chain_of_thought_workflow():
     start_agent = StartAgent(
         settings={
             "name": "StartAgent",
-            "prompt": "Please provide an overview of the task. \n Please provide an step by step of how to finish the task, from beggining to end.",
+            "prompt": "Please provide an overview of the task. \n Please provide a step-by-step guide on how to finish the task, from beginning to end.",
         }
     )
 
     end_agent = EndAgent(
         settings={
             "name": "EndAgent",
-            "prompt": f"Based on previous messages, you are responsible for providing the final output. \n Please provide the most complete and accurate answer. The final output contains All the information of the conversation that is related with the main task\n ",
-            "input": "Based on our conversation give me the final output for the task.",
+            "prompt": (
+                "Based on previous messages, you are responsible for providing the final output. \n"
+                "Please provide the most complete and accurate answer. The final output should contain all the information related to the main task."
+            ),
+            "input": "Based on our conversation, give me the final output for the task.",
         }
     )
 
@@ -203,14 +124,22 @@ def test_fluid_chain_of_thought_workflow():
         end_agent=end_agent,
     )
 
+    # Assign the selected model to all agents
+    for agent in [fluid_agent, supervisor_agent, start_agent, end_agent]:
+        agent.model = model
+
+    # Enable verbose logging within the workflow if needed
+    workflow.verbose = verbose  # Assuming Workflow supports a verbose attribute
+
     # Run the workflow
     final_output = workflow.run()
     print("Final Strategy:\n")
     print(final_output)
 
+    # Save the result to a file if needed
     with open("fluid_result.txt", "w") as f:
         f.write(final_output)
-        f.close()
+
     # Optionally, print the message history
     print("\nMessage History:")
     for message in workflow.memory.messages:
@@ -218,14 +147,65 @@ def test_fluid_chain_of_thought_workflow():
 
 
 def main():
-    # # Test ChainOfThoughtWorkflow
-    # test_chain_of_thought_workflow()
+    # Configure argument parser
+    parser = argparse.ArgumentParser(
+        description="Run FluidChainOfThoughtWorkflow with selected LLM model."
+    )
+    parser.add_argument(
+        "--model",
+        type=str,
+        choices=["openai", "groq", "ollama"],
+        required=True,
+        help="Choose the LLM model to use: openai, groq, or ollama.",
+    )
+    parser.add_argument(
+        "--api_key",
+        type=str,
+        default=None,
+        help="API key for OpenAI or Groq models.",
+    )
+    parser.add_argument(
+        "--url",
+        type=str,
+        default=None,
+        help="URL for Ollama model. Defaults to localhost if not provided.",
+    )
+    parser.add_argument(
+        "--task",
+        type=str,
+        default=None,
+        help="Task description. If not provided, you will be prompted to enter it.",
+    )
+    parser.add_argument(
+        "--verbose",
+        action="store_true",
+        help="Enable verbose logging to see detailed agent inputs and outputs.",
+    )
 
-    # # Test TreeOfThoughtWorkflow
-    # test_tree_of_thought_workflow()
+    args = parser.parse_args()
 
-    # Test FluidChainOfThoughtWorkflow
-    test_fluid_chain_of_thought_workflow()
+    # Configure logging
+    configure_logging()
+
+    # Get model instance
+    try:
+        model = get_model_instance(
+            model_choice=args.model, api_key=args.api_key, url=args.url
+        )
+    except ValueError as e:
+        logging.error(e)
+        return
+
+    # Get task description
+    if not args.task:
+        task_description = input("Enter the task description: ")
+    else:
+        task_description = args.task
+
+    # Run the workflow
+    test_fluid_chain_of_thought_workflow(
+        model=model, task_description=task_description, verbose=args.verbose
+    )
 
 
 if __name__ == "__main__":

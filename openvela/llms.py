@@ -68,10 +68,10 @@ class Model(ABC):
 
 @dataclass
 class OllamaModel(Model):
-    host: str = "10.50.0.11"
+    host: str = "localhost"
     port: int = 11434
     client: Client = field(init=False)
-    model: str = "llama3.1:70b"
+    model: str = "llama3.2"
 
     def __post_init__(self):
         self.client = Client(f"http://{self.host}:{self.port}/")
@@ -152,8 +152,6 @@ class OpenAIModel(Model):
 
 @dataclass
 class GroqModel(Model):
-    host: str = "10.50.0.11"
-    port: int = 11434
     client: Groq = field(init=False)
     model: str = "llama3.1:70b"
 
@@ -180,7 +178,8 @@ class GroqModel(Model):
             messages=converted_messages,
             tools=selected_tools,
             max_tokens=options["max_tokens"],
+            temperature=options["temperature"],
             response_format=format,
         )
         response_mapping: Mapping[str, Any] = next(iter([response]))
-        return response_mapping["message"]["content"]
+        return response_mapping.choices[0].message.content

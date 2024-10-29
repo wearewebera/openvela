@@ -1,3 +1,5 @@
+# workflows.py
+
 import logging
 from abc import ABC, abstractmethod
 from typing import List, Optional
@@ -40,6 +42,8 @@ class Workflow(ABC):
         for agent in self.agents + [self.start_agent, self.end_agent, self.supervisor]:
             self.agent_memory.add_agent_info(agent.name, agent.prompt)
 
+        self.verbose = False  # Add verbose attribute
+
     @abstractmethod
     def run(self) -> str:
         pass
@@ -54,8 +58,15 @@ class ChainOfThoughtWorkflow(Workflow):
 
         while current_agent != self.end_agent:
             logging.debug(f"Current agent: {current_agent.name}")
+            if self.verbose:
+                logging.info(f"Input to {current_agent.name}: {current_input}")
+
             # Agent responds using their own process method
             output = current_agent.respond(current_input)
+
+            if self.verbose:
+                logging.info(f"Output from {current_agent.name}: {output}")
+
             self.memory.add_message("assistant", output)
 
             # The next agent's input is the previous agent's output
@@ -68,6 +79,9 @@ class ChainOfThoughtWorkflow(Workflow):
         logging.debug(f"Current agent: {current_agent.name}")
         final_output = self.end_agent.respond(current_input)
         self.memory.add_message("assistant", final_output)
+
+        if self.verbose:
+            logging.info(f"Output from {current_agent.name}: {final_output}")
 
         return final_output
 
@@ -83,12 +97,22 @@ class TreeOfThoughtWorkflow(Workflow):
         outputs = current_agent.generate_thoughts(current_input)
         thoughts.extend(outputs)
 
+        if self.verbose:
+            logging.info(f"Initial thoughts: {thoughts}")
+
         # Supervisor evaluates thoughts
         best_thoughts = self.supervisor.evaluate_thoughts(thoughts)
+
+        if self.verbose:
+            logging.info(f"Best thoughts after evaluation: {best_thoughts}")
+
         final_outputs = []
 
         for thought in best_thoughts:
             self.memory.add_message("assistant", thought)
+
+            if self.verbose:
+                logging.info(f"Processing thought: {thought}")
 
             # Process thought with subworkflows or end agent
             if self.subworkflows:
@@ -99,8 +123,13 @@ class TreeOfThoughtWorkflow(Workflow):
                 self.memory.add_message("assistant", final_response)
                 final_outputs.append(final_response)
 
+            if self.verbose:
+                logging.info(f"Final response: {final_response}")
+
         # Combine outputs
         final_output = self.supervisor.combine_outputs(final_outputs)
+        if self.verbose:
+            logging.info(f"Combined final output: {final_output}")
         return final_output
 
 
@@ -121,31 +150,45 @@ class FluidChainOfThoughtWorkflow(Workflow):
 
     def run(self) -> str:
         logging.info("Starting FluidChainOfThoughtWorkflow.")
-        # FluidAgent generates agents from the task
-        agents_definitions = self.fluid_agent.generate_agents_from_task(
-            self.task.prompt
-        )
-        self.agents = self.fluid_agent.create_agents(
-            agents_definitions, memory=self.memory
-        )
-        # Update the supervisor's agents list
-        self.supervisor.agents = self.agents
-        self.start_agent.fluid_input = self.task.prompt
         current_agent = self.start_agent
         current_input = self.task.prompt
-        self.count = 0
-        while self.count != len(self.agents):
+        self.memory.add_message("user", current_input)
+
+        if self.verbose:
+            logging.info(f"Initial task input: {current_input}")
+
+        while True:
             logging.debug(f"Current agent: {current_agent.name}")
+            if self.verbose:
+                logging.info(f"Input to {current_agent.name}: {current_input}")
+
             # Agent responds using their own process method
+            output = current_agent.respond(current_input)
 
-            output = current_agent.single_thought_process()
+            if self.verbose:
+                logging.info(f"Output from {current_agent.name}: {output}")
 
-            # The next agent's input is the previous agent's output
-            self.final_output = output
-            current_agent = self.supervisor.choose_next_agent(current_agent, output)
-            self.count += 1
-            # Add the new user input
-        self.end_agent.memory = self.memory
-        self.final_output = self.end_agent.single_thought_process()
+            self.memory.add_message("assistant", output)
 
-        return self.final_output
+            # Determine the next agent
+            next_agent = self.supervisor.choose_next_agent(current_agent, output)
+
+            if next_agent == self.end_agent:
+                break
+
+            current_agent = next_agent
+            current_input = output
+            self.memory.add_message("user", current_input)
+
+        # End agent responds using all messages
+        logging.debug(f"Current agent: {self.end_agent.name}")
+        if self.verbose:
+            logging.info(f"Input to {self.end_agent.name}: {current_input}")
+        final_output = self.end_agent.respond(current_input)
+        self.memory.add_message("assistant", final_output)
+
+        if self.verbose:
+            logging.info(f"Output from {self.end_agent.name}: {final_output}")
+
+        self.final_output = final_output
+        return final_output
