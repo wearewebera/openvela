@@ -1,4 +1,3 @@
-# workflows.py
 
 import logging
 from abc import ABC, abstractmethod
@@ -42,7 +41,9 @@ class Workflow(ABC):
         for agent in self.agents + [self.start_agent, self.end_agent, self.supervisor]:
             self.agent_memory.add_agent_info(agent.name, agent.prompt)
 
+
         self.verbose = False  # Add verbose attribute
+
 
     @abstractmethod
     def run(self) -> str:
@@ -58,6 +59,7 @@ class ChainOfThoughtWorkflow(Workflow):
 
         while current_agent != self.end_agent:
             logging.debug(f"Current agent: {current_agent.name}")
+
             if self.verbose:
                 logging.info(f"Input to {current_agent.name}: {current_input}")
 
@@ -80,8 +82,10 @@ class ChainOfThoughtWorkflow(Workflow):
         final_output = self.end_agent.respond(current_input)
         self.memory.add_message("assistant", final_output)
 
+
         if self.verbose:
             logging.info(f"Output from {current_agent.name}: {final_output}")
+
 
         return final_output
 
@@ -97,6 +101,7 @@ class TreeOfThoughtWorkflow(Workflow):
         outputs = current_agent.generate_thoughts(current_input)
         thoughts.extend(outputs)
 
+
         if self.verbose:
             logging.info(f"Initial thoughts: {thoughts}")
 
@@ -106,10 +111,12 @@ class TreeOfThoughtWorkflow(Workflow):
         if self.verbose:
             logging.info(f"Best thoughts after evaluation: {best_thoughts}")
 
+
         final_outputs = []
 
         for thought in best_thoughts:
             self.memory.add_message("assistant", thought)
+
 
             if self.verbose:
                 logging.info(f"Processing thought: {thought}")
@@ -123,6 +130,7 @@ class TreeOfThoughtWorkflow(Workflow):
                 self.memory.add_message("assistant", final_response)
                 final_outputs.append(final_response)
 
+
             if self.verbose:
                 logging.info(f"Final response: {final_response}")
 
@@ -130,6 +138,7 @@ class TreeOfThoughtWorkflow(Workflow):
         final_output = self.supervisor.combine_outputs(final_outputs)
         if self.verbose:
             logging.info(f"Combined final output: {final_output}")
+
         return final_output
 
 
@@ -150,6 +159,7 @@ class FluidChainOfThoughtWorkflow(Workflow):
 
     def run(self) -> str:
         logging.info("Starting FluidChainOfThoughtWorkflow.")
+
         current_agent = self.start_agent
         current_input = self.task.prompt
         self.memory.add_message("user", current_input)
@@ -192,3 +202,4 @@ class FluidChainOfThoughtWorkflow(Workflow):
 
         self.final_output = final_output
         return final_output
+

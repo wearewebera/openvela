@@ -106,6 +106,7 @@ def test_fluid_chain_of_thought_workflow(
         }
     )
 
+
     supervisor_agent = SupervisorAgent(
         settings={
             "name": "SupervisorAgent",
@@ -114,7 +115,6 @@ def test_fluid_chain_of_thought_workflow(
         start_agent=start_agent,
         end_agent=end_agent,
     )
-
     # Create the FluidChainOfThoughtWorkflow
     workflow = FluidChainOfThoughtWorkflow(
         task=task,
@@ -206,6 +206,7 @@ def main():
     test_fluid_chain_of_thought_workflow(
         model=model, task_description=task_description, verbose=args.verbose
     )
+
 
 
 if __name__ == "__main__":
