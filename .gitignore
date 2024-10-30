@@ -1,6 +1,10 @@
 **/__pycache__
 **/.venv
 **/.DS_Store
-dist/
-
+**/dist/
+**/prompts/
+**/poetry.lock
 **/*.log
+**/.openvela/*.json
+**/*.txt
+**/.openvela/

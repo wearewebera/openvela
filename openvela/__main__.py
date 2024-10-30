@@ -13,7 +13,7 @@ from workflows import (
 
 
 def test_chain_of_thought_workflow():
-    print("Testing ChainOfThoughtWorkflow...\n")
+
     # Configure logging
     configure_logging()
 
@@ -70,23 +70,18 @@ def test_chain_of_thought_workflow():
 
     # Run the workflow
     final_output = workflow.run()
-    print("Final Story:\n")
-    print(final_output)
-
+    with open("chain_result.txt", "w") as f:
+        f.write(final_output)
+        f.close()
     # Optionally, print the message history
-    print("\nMessage History:")
-    for message in workflow.memory.messages:
-        print(f"{message['role']}: {message['content']}")
 
     # Use JsonReader to load the data
     json_reader = JsonReader(file_path=".openvela/workflow_memory.json")
     data_dict = json_reader.json_to_dict()
-    print("\nData from JsonReader:")
-    print(data_dict)
 
 
 def test_tree_of_thought_workflow():
-    print("\nTesting TreeOfThoughtWorkflow...\n")
+
     # Configure logging
     configure_logging()
 
@@ -134,23 +129,18 @@ def test_tree_of_thought_workflow():
 
     # Run the workflow
     final_output = workflow.run()
-    print("Final Output:\n")
-    print(final_output)
 
     # Optionally, print the message history
-    print("\nMessage History:")
-    for message in workflow.memory.messages:
-        print(f"{message['role']}: {message['content']}")
 
 
 def test_fluid_chain_of_thought_workflow():
-    print("\nTesting FluidChainOfThoughtWorkflow...\n")
+
     # Configure logging
     configure_logging()
 
     # Define the task
     task_description = (
-        """give me the full code of how to create a model like trocr from microsoft"""
+        """Create a roadmap to learn Python programming language on it's maximum."""
     )
 
     task = Task(
@@ -162,18 +152,13 @@ def test_fluid_chain_of_thought_workflow():
     )
 
     # Create a FluidAgent
-    fluid_agent = FluidAgent(
-        settings={
-            "name": "FluidAgent",
-            "prompt": "You are a FluidAgent that generates specialized agents based on the task.",
-        }
-    )
+    fluid_agent = FluidAgent(settings={"name": "FluidAgent"})
 
     # Define start and end agents
     start_agent = StartAgent(
         settings={
             "name": "StartAgent",
-            "prompt": "Please provide an overview of the task. \n Please provide an step by step of how to finish the task, from beggining to end.",
+            "prompt": "You are responsible for improve the task clarity and return a task description.\nPlease provide an overview of the task. \n Please provide an step by step of how to finish the task, from beggining to end.",
         }
     )
 
@@ -199,22 +184,15 @@ def test_fluid_chain_of_thought_workflow():
         task=task,
         fluid_agent=fluid_agent,
         supervisor=supervisor_agent,
-        start_agent=start_agent,
-        end_agent=end_agent,
     )
 
     # Run the workflow
-    final_output = workflow.run()
-    print("Final Strategy:\n")
-    print(final_output)
+    final_output, id = workflow.run()
 
     with open("fluid_result.txt", "w") as f:
         f.write(final_output)
         f.close()
     # Optionally, print the message history
-    print("\nMessage History:")
-    for message in workflow.memory.messages:
-        print(f"{message['role']}: {message['content']}")
 
 
 def main():

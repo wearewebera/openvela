@@ -3,7 +3,7 @@ import logging
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
 
-from llms import Model, OllamaModel
+from llms import GroqModel, Model, OllamaModel
 from memory import JsonShortTermMemory
 from tools import AIFunctionTool
 
@@ -13,7 +13,7 @@ from openvela.memory import WorkflowMemory
 @dataclass
 class Agent:
     settings: dict
-    model: Model = field(default_factory=OllamaModel)
+    model: Model = field(default_factory=GroqModel)
     tools: Optional[List[AIFunctionTool]] = None
     tools_choice: Optional[str] = None
     memory: WorkflowMemory = field(default_factory=lambda: WorkflowMemory())
@@ -26,7 +26,7 @@ class Agent:
         self.fluid_input = self.settings.get("input", "")
         self.memory.prompt = self.prompt  # Set the memory prompt
         self.input = ""
-        logging.info(f"{self.name} initialized with prompt: {self.prompt}")
+        # logging.info(f"{self.name} initialized with prompt: {self.prompt}")
 
     # Chain of Thought sequence
     def process(self, input_data: str) -> str:
@@ -135,7 +135,7 @@ class Agent:
         pass
 
     def reflect(self, result: str):
-        logging.debug(f"{self.name} is reflecting on the result.")
+
         # Use the model to reflect on the result
         prompt = f"Reflect on the following result and note any lessons learned for the main task '{self.input}':\n{result}"
 
@@ -145,17 +145,17 @@ class Agent:
         self.memory.add_message("assistant", response)
 
     def learn(self, result: str):
-        logging.debug(f"{self.name} is learning from the result.")
+
         # Implement learning logic if needed
         pass
 
     def communicate(self, result: str) -> str:
-        logging.debug(f"{self.name} is communicating the result.")
+
         # Return the final result
         return result
 
     def generate_thoughts(self, input_data: str) -> List[str]:
-        logging.debug(f"{self.name} is generating thoughts.")
+
         prompt = f"{self.prompt}\nGenerate several thoughts or ideas based on the following input for the main task '{self.input}':\n{input_data}"
 
         messages = self.memory.load()
@@ -166,18 +166,20 @@ class Agent:
         self.memory.add_message("assistant", response)
         return thoughts
 
-    def single_thought_process(self) -> str:
-        logging.debug(f"{self.name} is processing a single thought.")
+    def single_thought_process(self, **kwargs) -> str:
+
         # Use the model to process a single thought
         single_thought_messages = []
         messages = self.memory.load()
 
         single_thought_messages.extend(messages)
-
-        single_thought_messages.append({"role": "system", "content": self.prompt})
+        single_thought_messages.insert(0, {"role": "system", "content": self.prompt})
         single_thought_messages.append({"role": "user", "content": self.fluid_input})
         self.memory.add_message("user", self.fluid_input)
-        response = self.model.generate_response(single_thought_messages)
+        print(f"\n\nAgent: {self.name}\n")
+        print(f"\nUser: {self.fluid_input}\n")
+        response = self.model.generate_response(single_thought_messages, **kwargs)
+        print(f"Assistant: {response}\n")
         self.memory.add_message("assistant", response)
         return response
 
@@ -200,7 +202,7 @@ class SupervisorAgent(Agent):
     agents: List[Agent] = field(default_factory=list)
 
     def choose_next_agent(self, current_agent: Agent, output: str) -> Agent:
-        logging.debug(f"{self.name} is choosing the next agent.")
+
         try:
             if current_agent == self.start_agent:
                 return self.agents[0]
@@ -250,15 +252,138 @@ class FluidAgent(Agent):
     def generate_agents_from_task(self, task_description: str) -> List[Dict]:
         logging.debug(f"{self.name} is generating agents from task.")
         # Use the model to generate agent definitions in JSON
-        prompt = f"Based on the following task description, generate agent definitions in JSON format for dict('agents': [dict('name': 'name of the agent', 'prompt': it's the system prompt of the agent --it defines the function of the agent within the logic to enhance the final answer, define a context of what the agent is within the workflow min 50 words--, 'input': question that you create to simulate a question that helps find a better answer)]) for the main task:\n{task_description}\n\nRemeber to separate the agents with a comma ','.\nJust return the agents JSON and follow a logic sequence of actions. \n The prompts and inputs should be related to complete the objective of the task. \n analyze the task and generate agents that can help to complete the task. \n The agents should learn from the previous messages and provide a better answer to the next agent. \n All the keys and values are required and strings can not be empty. \n Be detailed in the prompts and inputs to provide a better final output.\n The last agent should be the end agent.\n The end agent is the agent that will provide the final output with the the experience learned from the conversation and the main task. "
+        prompt = """
+        Based on the following task description, generate a JSON object defining a comprehensive workflow of agents to accomplish the main task. The workflow should initiate with a `StartAgent`, proceed through multiple intermediary agents in a cascading sequence, and conclude with an `EndAgent`. Each agent should add relevant insights or process data based on its unique function, enriching the conversation and enhancing the final output.
+
+**JSON Structure:**
+
+{
+  "agents": [
+    {
+      "name": "StartAgent",
+      "prompt": "System prompt of the StartAgent. This agent initiates the workflow based on the task description or user input. Provide a detailed context (minimum 50 words) explaining the StartAgent's role in setting up the workflow.",
+      "input": "Initial task description or user input to begin the workflow."
+    },
+    {
+      "name": "Agent1",
+      "prompt": "System prompt of Agent1. Define this agent's specific function within the workflow, detailing how it processes or adds insights to the information received from the StartAgent.",
+      "input": "Simulated question or directive that Agent1 uses to enhance the workflow."
+    },
+    {
+      "name": "Agent2",
+      "prompt": "System prompt of Agent2. Describe this agent's role in further processing the data or insights provided by Agent1, contributing to the enrichment of the conversation.",
+      "input": "Simulated question or directive that Agent2 uses to build upon Agent1's contributions."
+    },
+    ...
+    {
+      "name": "EndAgent",
+      "prompt": "System prompt of the EndAgent. This agent synthesizes all the insights and data gathered from the preceding agents to provide a comprehensive and cohesive final response. Explain the EndAgent's role in integrating the workflow's collective efforts.",
+      "input": "Final directive to synthesize and deliver the completed task outcome."
+    }
+  ]
+}
+
+**Instructions:**
+
+1. **Workflow Initiation:**
+   - **StartAgent:**
+     - **Name:** Assign as "StartAgent".
+     - **Prompt:** Craft a detailed system prompt (minimum 50 words) that defines the StartAgent's role in initiating the workflow based on the task description or user input.
+     - **Input:** Create an initial question or directive that the StartAgent uses to begin the workflow.
+
+2. **Intermediate Agents:**
+   - **Sequence:** Add multiple agents (Agent1, Agent2, etc.) that follow in a logical sequence.
+   - **Name:** Assign meaningful names to each intermediary agent (e.g., "ResearchAgent", "AnalysisAgent").
+   - **Prompt:** For each agent, write a detailed system prompt that defines its unique function within the workflow, explaining how it processes data or adds insights based on inputs from the preceding agent.
+   - **Input:** Develop simulated questions or directives that each agent would use to further the workflow and enhance the final answer.
+
+3. **Workflow Progression:**
+   - Ensure each agent builds upon the information and insights provided by the previous agents.
+   - Maintain a logical and cohesive flow of information from one agent to the next.
+
+4. **EndAgent:**
+   - **Name:** Assign as "EndAgent".
+   - **Prompt:** Develop a comprehensive system prompt (minimum 50 words) that defines the EndAgent's role in synthesizing all gathered insights and data to deliver the final, cohesive response.
+   - **Input:** Create a final directive that instructs the EndAgent to integrate the workflow's collective efforts and complete the main task.
+
+5. **Structure and Formatting:**
+   - Ensure all agents are separated by a comma.
+   - Adhere strictly to the provided JSON structure.
+   - All keys (`name`, `prompt`, `input`) must be present and contain non-empty string values.
+   - Be detailed in both prompts and inputs to facilitate a comprehensive final output.
+
+6. **Learning and Enhancement:**
+   - Design each agent to learn from the previous messages, enabling progressively improved responses throughout the workflow.
+
+7. **Output Only:**
+   - Return only the JSON object containing the agents.
+   - Do not include any additional text or explanations.
+   
+8. **Limit of agents:**
+    - Define the dificuty of the task in hard, medium or easy:
+        -Hard examples:
+            - "Can you explain the concept of quantum entanglement and its implications in modern physics?"
+            - "Summarize the key findings of the latest research on renewable energy technologies."
+            - "Can you help me outline a novel set in a dystopian future where technology controls society?"
+        -Medium examples:
+            - "Can you help me draft a professional email to request a meeting?"
+            - "How can I create a pivot table in Excel to analyze my sales data?"
+            - "I'm getting an error in my Python code. Can you help me debug it?"
+        -Easy examples:
+            - "What is the capital of Japan?"
+            - "Can you correct this sentence: 'She dont like apples.'?"
+    - Just create the number of agents according to the difficulty:
+        - Hard: 7 agents,
+        - Medium: 5 agents
+        - Easy: 3 agents
+        
+
+
+
+
+**Example Structure:**
+
+```json
+{
+  "agents": [
+    {
+      "name": "StartAgent",
+      "prompt": "You are the StartAgent. Your role is to initiate the workflow by analyzing the task description or user input. You will set the foundation for subsequent agents by outlining the primary objectives and necessary information required to address the task effectively.",
+      "input": "Please provide a detailed overview of the main objectives and key information needed to accomplish the task."
+    },
+    {
+      "name": "ResearchAgent",
+      "prompt": "You are the ResearchAgent. Your function is to gather relevant data and information based on the overview provided by the StartAgent. You will compile comprehensive research that will serve as the foundation for further analysis.",
+      "input": "What are the latest findings and relevant information pertaining to the main objectives outlined by the StartAgent?"
+    },
+    {
+      "name": "AnalysisAgent",
+      "prompt": "You are the AnalysisAgent. Your role is to evaluate the data collected by the ResearchAgent, identifying patterns, trends, and key insights that will enhance the understanding of the task.",
+      "input": "Based on the research data, what are the significant trends and insights that emerge?"
+    },
+    {
+      "name": "StrategyAgent",
+      "prompt": "You are the StrategyAgent. Your task is to develop strategies and recommendations utilizing the insights provided by the AnalysisAgent to address the main objectives effectively.",
+      "input": "What strategies and recommendations can be formulated from the identified insights to achieve the task's objectives?"
+    },
+    {
+      "name": "EndAgent",
+      "prompt": "You are the EndAgent. Your responsibility is to synthesize all the information, insights, and strategies developed by the previous agents to deliver a comprehensive and cohesive final response that thoroughly addresses the main task.",
+      "input": "Please integrate all gathered data, insights, and strategies to provide a detailed and cohesive final answer to the main task."
+    }
+  ]
+}
+
+"""
 
         messages = self.memory.load()
-        messages.append({"role": "user", "content": prompt})
+        messages.insert(0, {"role": "system", "content": prompt})
+        messages.append({"role": "user", "content": task_description})
         response = self.model.generate_response(messages, format="json")
-        print(response)
+
         try:
             agents_json = json.loads(response)
-            print(agents_json)
+
             return agents_json.get("agents", [])
         except json.JSONDecodeError:
             logging.error("Failed to decode agents JSON .")

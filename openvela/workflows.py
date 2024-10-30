@@ -1,4 +1,5 @@
 import logging
+import uuid
 from abc import ABC, abstractmethod
 from typing import List, Optional
 
@@ -13,8 +14,8 @@ class Workflow(ABC):
         task: Task,
         agents: List[Agent],
         supervisor: SupervisorAgent,
-        start_agent: StartAgent,
-        end_agent: EndAgent,
+        start_agent: Optional[StartAgent],
+        end_agent: Optional[EndAgent],
         subworkflows: Optional[List["Workflow"]] = None,
     ):
         self.task = task
@@ -23,22 +24,23 @@ class Workflow(ABC):
         self.start_agent = start_agent
         self.end_agent = end_agent
         self.subworkflows = subworkflows if subworkflows else []
-
+        self.memory_id = str(uuid.uuid4())
         # Initialize WorkflowMemory with JsonMemoryFormat as default
         self.memory = WorkflowMemory(
-            file_path=".openvela/workflow_memory.json",
+            file_path=f".openvela/{self.memory_id}_workflow_memory.json",
             memory_format=JsonMemoryFormat(),
         )
 
         # Initialize AgentMemory to store agents' info
         self.agent_memory = AgentMemory(
-            file_path=".openvela/agents_info.json",
+            file_path=f".openvela/{self.memory_id}_agents_info.json",
             memory_format=JsonMemoryFormat(),
         )
 
         # Store agents' info using AgentMemory
         for agent in self.agents + [self.start_agent, self.end_agent, self.supervisor]:
-            self.agent_memory.add_agent_info(agent.name, agent.prompt)
+            if agent is not None:
+                self.agent_memory.add_agent_info(agent.name, agent.prompt)
 
     @abstractmethod
     def run(self) -> str:
@@ -48,14 +50,18 @@ class Workflow(ABC):
 class ChainOfThoughtWorkflow(Workflow):
     def run(self) -> str:
         logging.info("Starting ChainOfThoughtWorkflow.")
+
         current_agent = self.start_agent
         current_input = self.task.prompt
+
         self.memory.add_message("user", current_input)
 
         while current_agent != self.end_agent:
+
+            current_agent.fluid_input = current_input
             logging.debug(f"Current agent: {current_agent.name}")
             # Agent responds using their own process method
-            output = current_agent.respond(current_input)
+            output = current_agent.single_thought_process()
             self.memory.add_message("assistant", output)
 
             # The next agent's input is the previous agent's output
@@ -66,7 +72,8 @@ class ChainOfThoughtWorkflow(Workflow):
 
         # End agent responds using all messages
         logging.debug(f"Current agent: {current_agent.name}")
-        final_output = self.end_agent.respond(current_input)
+        self.end_agent.fluid_input = current_input
+        final_output = self.end_agent.single_thought_process()
         self.memory.add_message("assistant", final_output)
 
         return final_output
@@ -110,8 +117,8 @@ class FluidChainOfThoughtWorkflow(Workflow):
         task: Task,
         fluid_agent: FluidAgent,
         supervisor: SupervisorAgent,
-        start_agent: StartAgent,
-        end_agent: EndAgent,
+        start_agent: Optional[StartAgent] = None,
+        end_agent: Optional[EndAgent] = None,
         subworkflows: Optional[List["Workflow"]] = None,
     ):
         super().__init__(task, [], supervisor, start_agent, end_agent, subworkflows)
@@ -130,12 +137,20 @@ class FluidChainOfThoughtWorkflow(Workflow):
         )
         # Update the supervisor's agents list
         self.supervisor.agents = self.agents
-        self.start_agent.fluid_input = self.task.prompt
-        current_agent = self.start_agent
+        agents_quantity = len(self.agents)
+        print(self.agents)
+        current_agent = self.agents[0]
+        if self.start_agent:
+            agents_quantity += 1
+            if not self.start_agent.fluid_input:
+                self.start_agent.fluid_input = self.task.prompt
+            current_agent = self.start_agent
         current_input = self.task.prompt
         self.count = 0
-        while self.count != len(self.agents):
-            logging.debug(f"Current agent: {current_agent.name}")
+        while self.count != agents_quantity:
+            if current_agent != self.start_agent:
+                current_agent = self.agents[self.count]
+
             # Agent responds using their own process method
 
             output = current_agent.single_thought_process()
@@ -145,7 +160,8 @@ class FluidChainOfThoughtWorkflow(Workflow):
             current_agent = self.supervisor.choose_next_agent(current_agent, output)
             self.count += 1
             # Add the new user input
-        self.end_agent.memory = self.memory
-        self.final_output = self.end_agent.single_thought_process()
+        if self.end_agent:
+            self.end_agent.memory = self.memory
+            self.final_output = self.end_agent.single_thought_process()
 
-        return self.final_output
+        return self.final_output, self.memory_id

@@ -3,6 +3,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Any, Dict, Literal, Mapping, Optional, Sequence, TypedDict
 
+from groq import Groq
 from ollama import Client
 from openai import OpenAI
 
@@ -73,7 +74,6 @@ class OllamaModel(Model):
 
     def __post_init__(self):
         self.client = Client(f"http://{self.host}:{self.port}/")
-        logging.info(f"OllamaModel initialized with host: {self.host}")
 
     def generate_response(
         self,
@@ -115,6 +115,7 @@ class OpenAIModel(Model):
         files: Optional[list[Dict[str, Any]]] = None,
         tools: Optional[AIFunctionTool] = None,
         tool_choice: Optional[str] = None,
+        **kwargs,
     ) -> str:
         converted_messages = self._convert_to_messages(messages)
         converted_files = self._convert_to_files(files) if files else None
@@ -135,6 +136,7 @@ class OpenAIModel(Model):
                 messages=converted_messages,
                 tools=selected_tools,
                 tool_choice=tool_choice,
+                **kwargs,
             )
 
         response_mapping: Mapping[str, Any] = next(iter([response]))
@@ -146,3 +148,44 @@ class OpenAIModel(Model):
         )
         response_mapping: Mapping[str, Any] = next(iter([response]))
         return response_mapping["text"]
+
+
+@dataclass
+class GroqModel(Model):
+    client: Groq = field(init=False)
+    api_key: str = "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"
+    model: str = "llama-3.1-70b-versatile"
+
+    def __post_init__(self):
+        self.client = Groq(api_key=self.api_key)
+
+    def _recognize_format(self, format: str) -> dict[str, str]:
+        if format == "json":
+            return {"type": "json_object"}
+        if format == "":
+            return None
+        else:
+            raise ValueError(f"Unknown format: {format}")
+
+    def generate_response(
+        self,
+        messages: list[dict],
+        files: Optional[list[Dict[str, Any]]] = None,
+        tools: Optional[AIFunctionTool] = None,
+        tool_choice: Optional[str] = None,
+        format: Optional[str] = "",
+        **kwargs,
+    ):
+        converted_messages = self._convert_to_messages(messages)
+        selected_tools = (
+            self._functions_by_choices(tools, tool_choice) if tools else None
+        )
+        response = self.client.chat.completions.create(
+            model=self.model,
+            messages=converted_messages,
+            tools=selected_tools,
+            response_format=self._recognize_format(format),
+            **kwargs,
+        )
+
+        return response.choices[0].message.content
