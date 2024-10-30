@@ -83,6 +83,7 @@ class OpenVelaImageFile(File):
         Raises:
             ValueError: If reading the image file fails.
         """
+
         try:
             with Image.open(path) as img:
                 img_byte_arr = io.BytesIO()
