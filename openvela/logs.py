@@ -1,10 +1,17 @@
-# logs.py
-
 import logging
 import sys
 
 
 def configure_logging():
+    """
+    Configures the logging settings for the OpenVela application.
+
+    Sets up two handlers:
+        - StreamHandler for stdout with INFO level.
+        - FileHandler for logging detailed debug information to 'app.log'.
+
+    Both handlers use distinct formatters for console and file outputs.
+    """
     # Create a logger
     logger = logging.getLogger()
     logger.setLevel(logging.INFO)

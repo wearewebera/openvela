@@ -12,6 +12,11 @@ from openvela.memory import WorkflowMemory
 
 @dataclass
 class Agent:
+    """
+    Represents an individual agent within the OpenVela framework.
+    Each agent is configured with specific settings, utilizes a language model, and interacts with tools and memory.
+    """
+
     settings: dict
     model: Model = field(default_factory=GroqModel)
     tools: Optional[List[AIFunctionTool]] = None
@@ -21,6 +26,10 @@ class Agent:
     prompt: str = field(init=False)
 
     def __post_init__(self):
+        """
+        Post-initialization processing to set agent's name and prompt from settings.
+        Initializes additional attributes like fluid_input and input.
+        """
         self.name = self.settings.get("name", "Agent")
         self.prompt = self.settings.get("prompt", "")
         self.fluid_input = self.settings.get("input", "")
@@ -28,8 +37,16 @@ class Agent:
         self.input = ""
         # logging.info(f"{self.name} initialized with prompt: {self.prompt}")
 
-    # Chain of Thought sequence
     def process(self, input_data: str) -> str:
+        """
+        Executes the agent's processing sequence using the Chain of Thought approach.
+
+        Args:
+            input_data (str): The input data to process.
+
+        Returns:
+            str: The final output after processing.
+        """
         observed_data = self.observe(input_data)
         context = self.understand(observed_data)
         goals = self.identify_goals(context)
@@ -45,22 +62,51 @@ class Agent:
         return output
 
     def observe(self, input_data: str) -> str:
+        """
+        Observes and records the input data.
+
+        Args:
+            input_data (str): The data to observe.
+
+        Returns:
+            str: The observed data.
+        """
         logging.debug(f"{self.name} observes input data.")
         self.input = input_data
         return input_data
 
     def understand(self, data: str) -> str:
+        """
+        Processes the observed data to form an understanding.
+
+        Utilizes the language model to generate a response based on current memory.
+
+        Args:
+            data (str): The data to understand.
+
+        Returns:
+            str: The model's understanding of the data.
+        """
         logging.debug(f"{self.name} is understanding the data.")
-        # Use the model to generate an understanding of the data
         messages = self.memory.load()
         response = self.model.generate_response(messages)
         self.memory.add_message("assistant", response)
         return response
 
     def identify_goals(self, context: str) -> List[str]:
+        """
+        Identifies goals based on the provided context.
+
+        Constructs a prompt incorporating the main task and context, and generates goals using the model.
+
+        Args:
+            context (str): The context from which to identify goals.
+
+        Returns:
+            List[str]: A list of identified goals.
+        """
         logging.debug(f"{self.name} is identifying goals for the main task")
-        # Use the model to identify goals
-        prompt = f"Based on the following context, identify the objectives for the main task '{self.input}' for the main task '{self.input}':\n{context}"
+        prompt = f"Based on the following context, identify the objectives for the main task '{self.input}':\n{context}"
 
         messages = self.memory.load()
         messages.append({"role": "user", "content": prompt})
@@ -72,8 +118,16 @@ class Agent:
         return goals
 
     def retrieve_information(self, goals: List[str]) -> str:
+        """
+        Retrieves information relevant to the identified goals.
+
+        Args:
+            goals (List[str]): The list of goals to retrieve information for.
+
+        Returns:
+            str: The retrieved information.
+        """
         logging.debug(f"{self.name} is retrieving information.")
-        # Use the model to retrieve information relevant to the goals
         prompt = f"Retrieve information relevant to the following goals for the main task '{self.input}':\n{goals}"
 
         messages = self.memory.load()
@@ -83,8 +137,16 @@ class Agent:
         return response
 
     def plan(self, info: str) -> str:
+        """
+        Creates a plan based on the retrieved information.
+
+        Args:
+            info (str): The information to base the plan on.
+
+        Returns:
+            str: The formulated plan.
+        """
         logging.debug(f"{self.name} is planning.")
-        # Use the model to create a plan
         prompt = f"Based on the following information, create a plan for the main task '{self.input}':\n{info}"
 
         messages = self.memory.load()
@@ -94,8 +156,16 @@ class Agent:
         return response
 
     def analyze(self, plan: str) -> str:
+        """
+        Analyzes the created plan for effectiveness and potential issues.
+
+        Args:
+            plan (str): The plan to analyze.
+
+        Returns:
+            str: The analysis of the plan.
+        """
         logging.debug(f"{self.name} is analyzing the plan.")
-        # Use the model to analyze the plan
         prompt = f"Analyze the following plan for effectiveness and potential issues for the main task '{self.input}':\n{plan}"
 
         messages = self.memory.load()
@@ -105,8 +175,16 @@ class Agent:
         return response
 
     def decide(self, analysis: str) -> str:
+        """
+        Makes a decision based on the analysis of the plan.
+
+        Args:
+            analysis (str): The analysis to base the decision on.
+
+        Returns:
+            str: The decision made.
+        """
         logging.debug(f"{self.name} is making a decision.")
-        # Use the model to make a decision
         prompt = f"Based on the analysis, decide on the best course of action for the main task '{self.input}':\n{analysis}"
 
         messages = self.memory.load()
@@ -116,8 +194,16 @@ class Agent:
         return response
 
     def execute(self, decision: str) -> str:
+        """
+        Executes the decision and provides the result.
+
+        Args:
+            decision (str): The decision to execute.
+
+        Returns:
+            str: The result of the execution.
+        """
         logging.debug(f"{self.name} is executing the decision.")
-        # Use the model to execute the decision
         prompt = f"Execute the following decision and provide the result for the main task '{self.input}':\n{decision}"
         execute_messages = []
         messages = self.memory.load()
@@ -130,13 +216,24 @@ class Agent:
         return response
 
     def monitor(self, result: str):
+        """
+        Monitors the result of the execution.
+
+        Placeholder for implementing monitoring logic as needed.
+
+        Args:
+            result (str): The result to monitor.
+        """
         logging.debug(f"{self.name} is monitoring the result.")
-        # Implement monitoring logic if needed
         pass
 
     def reflect(self, result: str):
+        """
+        Reflects on the result to derive lessons learned.
 
-        # Use the model to reflect on the result
+        Args:
+            result (str): The result to reflect upon.
+        """
         prompt = f"Reflect on the following result and note any lessons learned for the main task '{self.input}':\n{result}"
 
         messages = self.memory.load()
@@ -145,30 +242,55 @@ class Agent:
         self.memory.add_message("assistant", response)
 
     def learn(self, result: str):
+        """
+        Placeholder for implementing learning logic based on the result.
 
-        # Implement learning logic if needed
+        Args:
+            result (str): The result to learn from.
+        """
         pass
 
     def communicate(self, result: str) -> str:
+        """
+        Prepares the final output to be communicated.
 
-        # Return the final result
+        Args:
+            result (str): The result to communicate.
+
+        Returns:
+            str: The final output.
+        """
         return result
 
     def generate_thoughts(self, input_data: str) -> List[str]:
+        """
+        Generates multiple thoughts or ideas based on the input data.
 
+        Args:
+            input_data (str): The input data to base thoughts on.
+
+        Returns:
+            List[str]: A list of generated thoughts.
+        """
         prompt = f"{self.prompt}\nGenerate several thoughts or ideas based on the following input for the main task '{self.input}':\n{input_data}"
 
         messages = self.memory.load()
         messages.append({"role": "user", "content": prompt})
-        response = self.model.generate_response(messages)
-        # Assume that the response contains multiple thoughts separated by new lines
+        response = self.model.generate_response(messages, format="json")
         thoughts = response.strip().split("\n")
         self.memory.add_message("assistant", response)
         return thoughts
 
     def single_thought_process(self, **kwargs) -> str:
+        """
+        Processes a single thought using the language model.
 
-        # Use the model to process a single thought
+        Args:
+            **kwargs: Additional keyword arguments to pass to the model.
+
+        Returns:
+            str: The model's response to the thought.
+        """
         single_thought_messages = []
         messages = self.memory.load()
 
@@ -184,25 +306,62 @@ class Agent:
         return response
 
     def respond(self, input_data: str) -> str:
+        """
+        Facilitates the agent's response to input data.
+
+        Args:
+            input_data (str): The input data to respond to.
+
+        Returns:
+            str: The agent's response.
+        """
         return self.process(input_data)
 
     def __eq__(self, other):
+        """
+        Checks equality based on the agent's name.
+
+        Args:
+            other: Another agent instance to compare with.
+
+        Returns:
+            bool: True if names are equal, False otherwise.
+        """
         if isinstance(other, Agent):
             return self.name == other.name
         return False
 
     def __hash__(self):
+        """
+        Returns the hash based on the agent's name.
+
+        Returns:
+            int: The hash of the agent's name.
+        """
         return hash(self.name)
 
 
 @dataclass
 class SupervisorAgent(Agent):
+    """
+    Specialized agent that supervises the workflow, managing the sequence of agents and evaluating their outputs.
+    """
+
     end_agent: Agent = None
     start_agent: Agent = None
     agents: List[Agent] = field(default_factory=list)
 
     def choose_next_agent(self, current_agent: Agent, output: str) -> Agent:
+        """
+        Determines the next agent in the workflow based on the current agent's output.
 
+        Args:
+            current_agent (Agent): The agent that just completed processing.
+            output (str): The output from the current agent.
+
+        Returns:
+            Agent: The next agent to process the output. Defaults to end_agent if no further agents.
+        """
         try:
             if current_agent == self.start_agent:
                 return self.agents[0]
@@ -213,7 +372,15 @@ class SupervisorAgent(Agent):
             return self.end_agent
 
     def evaluate_thoughts(self, thoughts: List[str]) -> List[str]:
-        # Use the model to evaluate thoughts
+        """
+        Evaluates a list of thoughts and selects the best ones.
+
+        Args:
+            thoughts (List[str]): The list of thoughts to evaluate.
+
+        Returns:
+            List[str]: The selected best thoughts.
+        """
         prompt = f"Evaluate the following thoughts and select the best ones for the main task '{self.input}'and return just then separated by ',':\n{thoughts}"
 
         messages = self.memory.load()
@@ -221,13 +388,21 @@ class SupervisorAgent(Agent):
         response = self.model.generate_response(messages)
         best_thoughts = response.strip().split(
             ","
-        )  # Assuming thoughts are separated by new lines
+        )  # Assuming thoughts are separated by commas
         self.memory.add_message("assistant", response)
         return best_thoughts
 
     def combine_outputs(self, outputs: List[str]) -> str:
+        """
+        Combines multiple outputs into a coherent final result.
+
+        Args:
+            outputs (List[str]): The list of outputs to combine.
+
+        Returns:
+            str: The combined final result.
+        """
         logging.debug(f"{self.name} is combining outputs.")
-        # Use the model to combine outputs if needed
         prompt = f"Combine the following outputs into a coherent result for the main task '{self.input}':\n{outputs}"
 
         messages = self.memory.load()
@@ -239,21 +414,47 @@ class SupervisorAgent(Agent):
 
 @dataclass
 class StartAgent(Agent):
+    """
+    Represents the starting agent in a workflow.
+    Inherits all functionalities from the base Agent class.
+    """
+
     pass
 
 
 @dataclass
 class EndAgent(Agent):
+    """
+    Represents the ending agent in a workflow.
+    Inherits all functionalities from the base Agent class.
+    """
+
     pass
 
 
 @dataclass
 class FluidAgent(Agent):
+    """
+    Specialized agent that dynamically generates and manages a set of agents based on a task description.
+    Facilitates the creation of complex workflows by defining a sequence of agents.
+    """
+
     def generate_agents_from_task(self, task_description: str) -> List[Dict]:
-        logging.debug(f"{self.name} is generating agents from task.")
-        # Use the model to generate agent definitions in JSON
+        """
+        Generates agent definitions based on the provided task description.
+
+        Utilizes the language model to create a JSON structure defining a comprehensive workflow of agents.
+
+        Args:
+            task_description (str): The description of the task to generate agents for.
+
+        Returns:
+            List[Dict]: A list of agent definitions as dictionaries.
+
+        Logs an error if JSON decoding fails and returns an empty list.
+        """
         prompt = """
-        Based on the following task description, generate a JSON object defining a comprehensive workflow of agents to accomplish the main task. The workflow should initiate with a `StartAgent`, proceed through multiple intermediary agents in a cascading sequence, and conclude with an `EndAgent`. Each agent should add relevant insights or process data based on its unique function, enriching the conversation and enhancing the final output.
+         Based on the following task description, generate a JSON object defining a comprehensive workflow of agents to accomplish the main task. The workflow should initiate with a `StartAgent`, proceed through multiple intermediary agents in a cascading sequence, and conclude with an `EndAgent`. Each agent should add relevant insights or process data based on its unique function, enriching the conversation and enhancing the final output.
 
 **JSON Structure:**
 
@@ -333,8 +534,8 @@ class FluidAgent(Agent):
             - "What is the capital of Japan?"
             - "Can you correct this sentence: 'She dont like apples.'?"
     - Just create the number of agents according to the difficulty:
-        - Hard: 7 agents,
-        - Medium: 5 agents
+        - Hard: 5 agents
+        - Medium: 4 agents
         - Easy: 3 agents
         
 
@@ -373,8 +574,7 @@ class FluidAgent(Agent):
     }
   ]
 }
-
-"""
+        """
 
         messages = self.memory.load()
         messages.insert(0, {"role": "system", "content": prompt})
@@ -383,15 +583,24 @@ class FluidAgent(Agent):
 
         try:
             agents_json = json.loads(response)
-
             return agents_json.get("agents", [])
         except json.JSONDecodeError:
-            logging.error("Failed to decode agents JSON .")
+            logging.error("Failed to decode agents JSON.")
             return []
 
     def create_agents(
         self, agents_definitions: List[Dict], memory: WorkflowMemory
     ) -> List[Agent]:
+        """
+        Creates Agent instances from their definitions.
+
+        Args:
+            agents_definitions (List[Dict]): A list of agent definitions.
+            memory (WorkflowMemory): The workflow memory to associate with agents.
+
+        Returns:
+            List[Agent]: A list of instantiated Agent objects.
+        """
         logging.debug(f"{self.name} is creating agents from definitions.")
         agents = []
         for agent_def in agents_definitions:

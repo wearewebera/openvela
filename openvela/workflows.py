@@ -9,6 +9,11 @@ from tasks import Task
 
 
 class Workflow(ABC):
+    """
+    Abstract base class representing a generic workflow.
+    Defines the structure and essential components required to execute a workflow.
+    """
+
     def __init__(
         self,
         task: Task,
@@ -18,6 +23,17 @@ class Workflow(ABC):
         end_agent: Optional[EndAgent],
         subworkflows: Optional[List["Workflow"]] = None,
     ):
+        """
+        Initializes the Workflow instance.
+
+        Args:
+            task (Task): The task to be executed within the workflow.
+            agents (List[Agent]): A list of intermediary agents involved in the workflow.
+            supervisor (SupervisorAgent): The supervisor agent overseeing the workflow.
+            start_agent (Optional[StartAgent]): The agent that initiates the workflow.
+            end_agent (Optional[EndAgent]): The agent that concludes the workflow.
+            subworkflows (Optional[List["Workflow"]], optional): A list of sub-workflows. Defaults to None.
+        """
         self.task = task
         self.agents = agents
         self.supervisor = supervisor
@@ -44,11 +60,33 @@ class Workflow(ABC):
 
     @abstractmethod
     def run(self) -> str:
+        """
+        Executes the workflow.
+
+        Must be implemented by subclasses to define specific workflow execution logic.
+
+        Returns:
+            str: The final output of the workflow.
+        """
         pass
 
 
 class ChainOfThoughtWorkflow(Workflow):
+    """
+    Implements a Chain of Thought workflow where agents process data sequentially.
+    Each agent processes the output of the previous one, culminating in the end agent.
+    """
+
     def run(self) -> str:
+        """
+        Executes the Chain of Thought workflow.
+
+        The workflow starts with the start agent, processes input through intermediary agents,
+        and concludes with the end agent.
+
+        Returns:
+            str: The final output after processing through all agents.
+        """
         logging.info("Starting ChainOfThoughtWorkflow.")
 
         current_agent = self.start_agent
@@ -57,7 +95,6 @@ class ChainOfThoughtWorkflow(Workflow):
         self.memory.add_message("user", current_input)
 
         while current_agent != self.end_agent:
-
             current_agent.fluid_input = current_input
             logging.debug(f"Current agent: {current_agent.name}")
             # Agent responds using their own process method
@@ -80,7 +117,21 @@ class ChainOfThoughtWorkflow(Workflow):
 
 
 class TreeOfThoughtWorkflow(Workflow):
+    """
+    Implements a Tree of Thought workflow where multiple thoughts are generated and evaluated,
+    allowing for parallel processing and selection of the best paths.
+    """
+
     def run(self) -> str:
+        """
+        Executes the Tree of Thought workflow.
+
+        The workflow generates multiple thoughts from the start agent, evaluates them,
+        processes each selected thought, and combines the outputs into a final result.
+
+        Returns:
+            str: The final combined output after processing selected thoughts.
+        """
         logging.info("Starting TreeOfThoughtWorkflow.")
         thoughts = []
         current_agent = self.start_agent
@@ -112,6 +163,11 @@ class TreeOfThoughtWorkflow(Workflow):
 
 
 class FluidChainOfThoughtWorkflow(Workflow):
+    """
+    Implements a Fluid Chain of Thought workflow where agents are dynamically generated based on the task.
+    Facilitates flexible and adaptive processing by creating agents on-the-fly.
+    """
+
     def __init__(
         self,
         task: Task,
@@ -121,12 +177,32 @@ class FluidChainOfThoughtWorkflow(Workflow):
         end_agent: Optional[EndAgent] = None,
         subworkflows: Optional[List["Workflow"]] = None,
     ):
+        """
+        Initializes the FluidChainOfThoughtWorkflow instance.
+
+        Args:
+            task (Task): The task to be executed within the workflow.
+            fluid_agent (FluidAgent): The agent responsible for generating other agents based on the task.
+            supervisor (SupervisorAgent): The supervisor agent overseeing the workflow.
+            start_agent (Optional[StartAgent], optional): The agent that initiates the workflow. Defaults to None.
+            end_agent (Optional[EndAgent], optional): The agent that concludes the workflow. Defaults to None.
+            subworkflows (Optional[List["Workflow"]], optional): A list of sub-workflows. Defaults to None.
+        """
         super().__init__(task, [], supervisor, start_agent, end_agent, subworkflows)
         self.fluid_agent = fluid_agent
         self.agents = []
         self.final_output = ""
 
     def run(self) -> str:
+        """
+        Executes the Fluid Chain of Thought workflow.
+
+        Dynamically generates agents based on the task, processes input through these agents,
+        and concludes with the end agent if present.
+
+        Returns:
+            Tuple[str, str]: The final output and the memory ID associated with the workflow.
+        """
         logging.info("Starting FluidChainOfThoughtWorkflow.")
         # FluidAgent generates agents from the task
         agents_definitions = self.fluid_agent.generate_agents_from_task(
@@ -152,7 +228,6 @@ class FluidChainOfThoughtWorkflow(Workflow):
                 current_agent = self.agents[self.count]
 
             # Agent responds using their own process method
-
             output = current_agent.single_thought_process()
 
             # The next agent's input is the previous agent's output
