@@ -3,7 +3,6 @@
 **/.DS_Store
 **/dist/
 **/prompts/
-**/poetry.lock
 **/*.log
 **/.openvela/*.json
 **/*.txt
