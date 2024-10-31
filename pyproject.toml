@@ -1,13 +1,18 @@
 [tool.poetry]
 name = "openvela"
-version = "0.1.3"
+version = "0.2.3"
 description = ""
-authors = ["Joel Zamboni <joel.zamboni@webera.com>"]
+authors = ["Joel Zamboni <joel.zamboni@webera.com>", "Augusto Izepon <augusto.izepon@webera.com>"]
 readme = "README.md"
 
 [tool.poetry.dependencies]
 python = "^3.12"
-ollama = "^0.1.9"
+openai = "^1.52.1"
+ollama = "^0.3.3"
+pillow = "^11.0.0"
+requests = "^2.32.3"
+groq = "^0.11.0"
+
 
 
 [build-system]
