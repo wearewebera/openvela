@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "openvela"
-version = "0.2.3"
+version = "0.2.9" 
 description = ""
 authors = ["Joel Zamboni <joel.zamboni@webera.com>", "Augusto Izepon <augusto.izepon@webera.com>"]
 readme = "README.md"
