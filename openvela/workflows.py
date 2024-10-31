@@ -102,6 +102,7 @@ class ChainOfThoughtWorkflow(Workflow):
             self.memory.add_message("assistant", output)
 
             # The next agent's input is the previous agent's output
+
             current_input = output
             current_agent = self.supervisor.choose_next_agent(current_agent, output)
             # Add the new user input
