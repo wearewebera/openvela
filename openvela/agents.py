@@ -32,9 +32,10 @@ class Agent:
         """
         self.name = self.settings.get("name", "Agent")
         self.prompt = self.settings.get("prompt", "")
-        self.fluid_input = self.settings.get("input", "")
         self.memory.prompt = self.prompt  # Set the memory prompt
         self.input = ""
+        self.extra_info = self.settings.get("extra_info", "")
+        self.fluid_input = self.settings.get("input", "") + self.extra_info
         # logging.info(f"{self.name} initialized with prompt: {self.prompt}")
 
     def process(self, input_data: str) -> str:
