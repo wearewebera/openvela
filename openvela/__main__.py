@@ -111,12 +111,12 @@ def main():
         while True:
             host_url = input(
                 "\nEnter the host URL for Ollama (e.g., http://localhost:11434): "
-            ).strip()
+            )
             if host_url:
                 break
             else:
                 print("Host URL cannot be empty. Please try again.")
-        model_instance = OllamaModel(host=host_url)
+        model_instance = OllamaModel(base_url=host_url)
     else:
         print("Unsupported provider selected.")
         sys.exit(1)

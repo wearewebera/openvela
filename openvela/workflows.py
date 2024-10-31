@@ -3,9 +3,9 @@ import uuid
 from abc import ABC, abstractmethod
 from typing import List, Optional
 
-from agents import Agent, EndAgent, FluidAgent, StartAgent, SupervisorAgent
-from memory import AgentMemory, JsonMemoryFormat, WorkflowMemory
-from tasks import Task
+from openvela.agents import Agent, EndAgent, FluidAgent, StartAgent, SupervisorAgent
+from openvela.memory import AgentMemory, JsonMemoryFormat, WorkflowMemory
+from openvela.tasks import Task
 
 
 class Workflow(ABC):
@@ -95,8 +95,8 @@ class ChainOfThoughtWorkflow(Workflow):
         self.memory.add_message("user", current_input)
 
         while current_agent != self.end_agent:
-            if current_agent.fluid_input != "":
-                current_agent.fluid_input = current_input
+            if current_agent.fluid_input == "" or current_agent == self.start_agent:
+                current_agent.fluid_input = current_input + current_agent.extra_info
             logging.debug(f"Current agent: {current_agent.name}")
             # Agent responds using their own process method
             output = current_agent.single_thought_process()

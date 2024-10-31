@@ -3,11 +3,9 @@ import logging
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
 
-from llms import GroqModel, Model, OllamaModel
-from memory import JsonShortTermMemory
-from tools import AIFunctionTool
-
-from openvela.memory import WorkflowMemory
+from openvela.llms import GroqModel, Model, OllamaModel
+from openvela.memory import JsonShortTermMemory, WorkflowMemory
+from openvela.tools import AIFunctionTool
 
 
 @dataclass
@@ -35,7 +33,8 @@ class Agent:
         self.memory.prompt = self.prompt  # Set the memory prompt
         self.input = ""
         self.extra_info = self.settings.get("extra_info", "")
-        self.fluid_input = self.settings.get("input", "") + self.extra_info
+        self.fluid_input = self.settings.get("input", "")
+
         # logging.info(f"{self.name} initialized with prompt: {self.prompt}")
 
     def process(self, input_data: str) -> str:
@@ -297,6 +296,8 @@ class Agent:
 
         single_thought_messages.extend(messages)
         single_thought_messages.insert(0, {"role": "system", "content": self.prompt})
+        if self.extra_info:
+            self.fluid_input += f"\n\n{self.extra_info}"
         single_thought_messages.append({"role": "user", "content": self.fluid_input})
         self.memory.add_message("user", self.fluid_input)
         print(f"\n\nAgent: {self.name}\n")

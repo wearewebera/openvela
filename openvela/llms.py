@@ -126,8 +126,8 @@ class OllamaModel(Model):
     Concrete implementation of Model interfacing with the Ollama language model.
     """
 
-    host: str = "localhost"
-    port: int = 11434
+    base_url: str = "http://localhost:11434/"
+
     client: Client = field(init=False)
     model: str = "llama3.2"
 
@@ -135,7 +135,8 @@ class OllamaModel(Model):
         """
         Initializes the Ollama client upon instantiation.
         """
-        self.client = Client(f"http://{self.host}:{self.port}/")
+
+        self.client = Client(self.base_url)
 
     def generate_response(
         self,
