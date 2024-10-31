@@ -95,7 +95,8 @@ class ChainOfThoughtWorkflow(Workflow):
         self.memory.add_message("user", current_input)
 
         while current_agent != self.end_agent:
-            current_agent.fluid_input = current_input
+            if not current_agent.fluid_input:
+                current_agent.fluid_input = current_input
             logging.debug(f"Current agent: {current_agent.name}")
             # Agent responds using their own process method
             output = current_agent.single_thought_process()
