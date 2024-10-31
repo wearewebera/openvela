@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Any, Dict, List
 
-from messages import Message
+from openvela.messages import Message
 
 
 class MemoryFormat(ABC):
@@ -177,8 +177,9 @@ class WorkflowMemory:
     Utilizes a JSON memory format for persistence.
     """
 
+    memory_id: str
     messages: List[Dict[str, str]] = field(default_factory=list)
-    file_path: str = ".openvela/workflow_memory.json"
+    file_path: str = field(init=False)
     memory_format: MemoryFormat = field(default_factory=JsonMemoryFormat)
 
     def __post_init__(self):
