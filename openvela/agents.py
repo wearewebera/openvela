@@ -2,7 +2,7 @@ import json
 import logging
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
-
+import uuid
 from openvela.llms import GroqModel, Model, OllamaModel
 from openvela.memory import JsonShortTermMemory, WorkflowMemory
 from openvela.tools import AIFunctionTool
@@ -19,9 +19,11 @@ class Agent:
     model: Model = field(default_factory=GroqModel)
     tools: Optional[List[AIFunctionTool]] = None
     tools_choice: Optional[str] = None
-    memory: WorkflowMemory = field(default_factory=lambda: WorkflowMemory())
+    memory_id: str = field(default_factory=lambda: str(uuid.uuid4()))
+
     name: str = field(init=False)
     prompt: str = field(init=False)
+    memory: WorkflowMemory = field(init=False)
 
     def __post_init__(self):
         """
@@ -30,7 +32,7 @@ class Agent:
         """
         self.name = self.settings.get("name", "Agent")
         self.prompt = self.settings.get("prompt", "")
-        self.memory.prompt = self.prompt  # Set the memory prompt
+        self.memory = WorkflowMemory(memory_id=self.memory_id)  # Set the memory prompt
         self.input = ""
         self.extra_info = self.settings.get("extra_info", "")
         self.fluid_input = self.settings.get("input", "")
@@ -441,7 +443,7 @@ class FluidAgent(Agent):
     Facilitates the creation of complex workflows by defining a sequence of agents.
     """
 
-    def generate_agents_from_task(self, task_description: str) -> List[Dict]:
+    def generate_agents_from_task(self, task_description: str, **kwargs) -> List[Dict]:
         """
         Generates agent definitions based on the provided task description.
 
@@ -540,7 +542,23 @@ class FluidAgent(Agent):
         - Medium: 4 agents
         - Easy: 3 agents
         
-
+9. **Identify the language:**
+    - Identify the language of the task description and set the language in the agents workflow.
+    - Do not translate the json structure keys, just the values.
+    
+10. **Do not modify the structure:**
+    - Do not modify the structure of the json, just the values.
+    - the json needs to follow the structure:
+        {
+            "agents": [
+                {
+                    "name": "name of the agent",
+                    "prompt": "System prompt of the agent. Describe the agent's role in the workflow and its function.",
+                    "input": "Simulated user input. Provide a question or directive for the agent to process or respond to. It has to be related to the previous agent."
+                }
+                ...
+            ]
+        }
 
 
 
@@ -581,7 +599,8 @@ class FluidAgent(Agent):
         messages = self.memory.load()
         messages.insert(0, {"role": "system", "content": prompt})
         messages.append({"role": "user", "content": task_description})
-        response = self.model.generate_response(messages, format="json")
+        response = self.model.generate_response(messages, format="json", **kwargs)
+        print(response)
 
         try:
             agents_json = json.loads(response)
@@ -591,7 +610,7 @@ class FluidAgent(Agent):
             return []
 
     def create_agents(
-        self, agents_definitions: List[Dict], memory: WorkflowMemory
+        self, agents_definitions: List[Dict], memory_id: str
     ) -> List[Agent]:
         """
         Creates Agent instances from their definitions.
@@ -606,6 +625,6 @@ class FluidAgent(Agent):
         logging.debug(f"{self.name} is creating agents from definitions.")
         agents = []
         for agent_def in agents_definitions:
-            agent = Agent(settings=agent_def, memory=memory)
+            agent = Agent(settings=agent_def, memory_id=memory_id, model=self.model)
             agents.append(agent)
         return agents

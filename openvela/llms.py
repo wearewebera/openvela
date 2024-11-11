@@ -145,7 +145,7 @@ class OllamaModel(Model):
         tools: Optional[AIFunctionTool] = None,
         tool_choice: Optional[str] = None,
         format: Optional[str] = "",
-        options: Optional[Dict[str, Any]] = {"num_ctx": 8192},
+        **kwargs
     ) -> str:
         """
         Generates a response using the Ollama language model.
@@ -169,7 +169,7 @@ class OllamaModel(Model):
             model=self.model,
             messages=converted_messages,
             tools=selected_tools,
-            options=options,
+            options={**kwargs},
             format=format,
         )
         response_mapping: Mapping[str, Any] = next(iter([response]))

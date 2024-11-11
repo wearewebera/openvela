@@ -179,13 +179,14 @@ class WorkflowMemory:
 
     memory_id: str
     messages: List[Dict[str, str]] = field(default_factory=list)
-    file_path: str = field(init=False)
+    
     memory_format: MemoryFormat = field(default_factory=JsonMemoryFormat)
 
     def __post_init__(self):
         """
         Ensures the directory for the memory file exists and loads existing messages.
         """
+        self.file_path = f".openvela/workflows/{self.memory_id}.json"
         os.makedirs(os.path.dirname(self.file_path), exist_ok=True)
         self.load()
 
