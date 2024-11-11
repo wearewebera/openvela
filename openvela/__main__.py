@@ -5,12 +5,12 @@ import logging
 import os
 import sys
 
-from agents import Agent, EndAgent, FluidAgent, StartAgent, SupervisorAgent
-from llms import GroqModel, OllamaModel, OpenAIModel
-from logs import configure_logging
-from memory import JsonReader
-from tasks import Task
-from workflows import (
+from openvela.agents import Agent, EndAgent, FluidAgent, StartAgent, SupervisorAgent
+from openvela.llms import GroqModel, OllamaModel, OpenAIModel
+from openvela.logs import configure_logging
+from openvela.memory import JsonReader
+from openvela.tasks import Task
+from openvela.workflows import (
     ChainOfThoughtWorkflow,
     FluidChainOfThoughtWorkflow,
     TreeOfThoughtWorkflow,

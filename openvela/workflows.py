@@ -43,7 +43,7 @@ class Workflow(ABC):
         self.memory_id = str(uuid.uuid4())
         # Initialize WorkflowMemory with JsonMemoryFormat as default
         self.memory = WorkflowMemory(
-            file_path=f".openvela/{self.memory_id}_workflow_memory.json",
+            memory_id=self.memory_id,
             memory_format=JsonMemoryFormat(),
         )
 
@@ -59,7 +59,7 @@ class Workflow(ABC):
                 self.agent_memory.add_agent_info(agent.name, agent.prompt)
 
     @abstractmethod
-    def run(self) -> str:
+    def run(self, **kwargs) -> str:
         """
         Executes the workflow.
 
@@ -77,7 +77,7 @@ class ChainOfThoughtWorkflow(Workflow):
     Each agent processes the output of the previous one, culminating in the end agent.
     """
 
-    def run(self) -> str:
+    def run(self, **kwargs) -> str:
         """
         Executes the Chain of Thought workflow.
 
@@ -99,7 +99,7 @@ class ChainOfThoughtWorkflow(Workflow):
                 current_agent.fluid_input = current_input
             logging.debug(f"Current agent: {current_agent.name}")
             # Agent responds using their own process method
-            output = current_agent.single_thought_process()
+            output = current_agent.single_thought_process(**kwargs)
             self.memory.add_message("assistant", output)
 
             # The next agent's input is the previous agent's output
@@ -123,7 +123,7 @@ class TreeOfThoughtWorkflow(Workflow):
     allowing for parallel processing and selection of the best paths.
     """
 
-    def run(self) -> str:
+    def run(self, **kwargs) -> str:
         """
         Executes the Tree of Thought workflow.
 
@@ -194,7 +194,7 @@ class FluidChainOfThoughtWorkflow(Workflow):
         self.agents = []
         self.final_output = ""
 
-    def run(self) -> str:
+    def run(self, **kwargs) -> str:
         """
         Executes the Fluid Chain of Thought workflow.
 
@@ -207,15 +207,14 @@ class FluidChainOfThoughtWorkflow(Workflow):
         logging.info("Starting FluidChainOfThoughtWorkflow.")
         # FluidAgent generates agents from the task
         agents_definitions = self.fluid_agent.generate_agents_from_task(
-            self.task.prompt
+            self.task.prompt, **kwargs
         )
         self.agents = self.fluid_agent.create_agents(
-            agents_definitions, memory=self.memory
+            agents_definitions, memory_id=self.memory_id
         )
         # Update the supervisor's agents list
         self.supervisor.agents = self.agents
         agents_quantity = len(self.agents)
-        print(self.agents)
         current_agent = self.agents[0]
         if self.start_agent:
             agents_quantity += 1
@@ -224,12 +223,14 @@ class FluidChainOfThoughtWorkflow(Workflow):
             current_agent = self.start_agent
         current_input = self.task.prompt
         self.count = 0
+        print(self.agents)
+        current_agent.memory_id = self.memory_id
         while self.count != agents_quantity:
             if current_agent != self.start_agent:
                 current_agent = self.agents[self.count]
 
             # Agent responds using their own process method
-            output = current_agent.single_thought_process()
+            output = current_agent.single_thought_process(**kwargs)
 
             # The next agent's input is the previous agent's output
             self.final_output = output
@@ -237,7 +238,7 @@ class FluidChainOfThoughtWorkflow(Workflow):
             self.count += 1
             # Add the new user input
         if self.end_agent:
-            self.end_agent.memory = self.memory
-            self.final_output = self.end_agent.single_thought_process()
+            self.end_agent.memory_id = self.memory_id
+            self.final_output = self.end_agent.single_thought_process(**kwargs)
 
         return self.final_output, self.memory_id
