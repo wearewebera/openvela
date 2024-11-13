@@ -23,7 +23,7 @@ class WorkflowRequest(BaseModel):
 async def run_workflow_endpoint(request_data: WorkflowRequest):
     try:
         # Use dot notation to access attributes of request_data instead of dictionary-like access
-        output, memory_id = run_workflow(
+        worflow_response = run_workflow(
             {
                 "provider": request_data.provider,
                 "workflow_type": request_data.workflow_type,
@@ -34,7 +34,7 @@ async def run_workflow_endpoint(request_data: WorkflowRequest):
                 "task_description": request_data.task,
             }
         )
-        return {"output": output, "memory_id": memory_id}
+        return worflow_response
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 

@@ -152,7 +152,7 @@ def run_workflow(config):
             start_agent=start_agent,
             end_agent=end_agent,
         )
-        output = workflow.run(**options)
+        output, memory_id = workflow.run(**options)
     elif workflow_type == "tot":
         workflow = TreeOfThoughtWorkflow(
             task=task,
@@ -161,7 +161,7 @@ def run_workflow(config):
             start_agent=start_agent,
             end_agent=end_agent,
         )
-        output = workflow.run(**options)
+        output, memory_id = workflow.run(**options)
     elif workflow_type == "fluid":
         fluid_agent = FluidAgent(settings={"name": "FluidAgent"}, model=model_instance)
         supervisor_agent = SupervisorAgent(
@@ -181,5 +181,16 @@ def run_workflow(config):
         print(f"\nMemory ID: {memory_id}")
     else:
         raise ValueError(f"Unsupported workflow type: {workflow_type}")
-
-    return output, memory_id
+    workflow_infos = {
+        "output": output,
+        "memory": {
+            "memory_id": memory_id,
+            "workflow_memory": workflow.memory.load(),
+        },
+        "agents": {
+            "start_agent": start_agent.settings,
+            "middle_agents": [agent.settings for agent in agents],
+            "end_agent": end_agent.settings,
+        },
+    }
+    return workflow_infos

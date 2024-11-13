@@ -145,7 +145,7 @@ class OllamaModel(Model):
         tools: Optional[AIFunctionTool] = None,
         tool_choice: Optional[str] = None,
         format: Optional[str] = "",
-        **kwargs
+        **kwargs,
     ) -> str:
         """
         Generates a response using the Ollama language model.
@@ -165,12 +165,13 @@ class OllamaModel(Model):
         selected_tools = (
             self._functions_by_choices(tools, tool_choice) if tools else None
         )
+        print()
         response = self.client.chat(
             model=self.model,
             messages=converted_messages,
             tools=selected_tools,
-            options={**kwargs},
-            format=format,
+            options=kwargs,
+            format=format or kwargs.get("format"),
         )
         response_mapping: Mapping[str, Any] = next(iter([response]))
         return response_mapping["message"]["content"]

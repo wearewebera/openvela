@@ -95,26 +95,29 @@ class ChainOfThoughtWorkflow(Workflow):
         self.memory.add_message("user", current_input)
 
         while current_agent != self.end_agent:
-            if current_agent.fluid_input == "" or current_agent == self.start_agent:
-                current_agent.fluid_input = current_input
+            print(current_agent)
+            current_agent.fluid_input = current_input
             logging.debug(f"Current agent: {current_agent.name}")
             # Agent responds using their own process method
             output = current_agent.single_thought_process(**kwargs)
             self.memory.add_message("assistant", output)
 
             # The next agent's input is the previous agent's output
-            current_input = output
+
             current_agent = self.supervisor.choose_next_agent(current_agent, output)
+            current_input = current_agent.fluid_input
+            if current_agent.fluid_input == "":
+                current_input = output
             # Add the new user input
             self.memory.add_message("user", current_input)
 
         # End agent responds using all messages
         logging.debug(f"Current agent: {current_agent.name}")
         self.end_agent.fluid_input = current_input
-        final_output = self.end_agent.single_thought_process()
+        final_output = self.end_agent.single_thought_process(**kwargs)
         self.memory.add_message("assistant", final_output)
 
-        return final_output
+        return final_output, self.memory_id
 
 
 class TreeOfThoughtWorkflow(Workflow):
@@ -160,7 +163,7 @@ class TreeOfThoughtWorkflow(Workflow):
 
         # Combine outputs
         final_output = self.supervisor.combine_outputs(final_outputs)
-        return final_output
+        return final_output, self.memory_id
 
 
 class FluidChainOfThoughtWorkflow(Workflow):
