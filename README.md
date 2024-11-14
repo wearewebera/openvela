@@ -1,7 +1,5 @@
 # OpenVela
 
-![OpenVela Logo](https://example.com/logo.png)
-
 
 
 Welcome to **OpenVela**, a versatile and extensible Python framework designed to simplify the creation and management of complex workflows involving language models (LLMs). OpenVela empowers developers and researchers to build intelligent agents that can process, analyze, and generate information in a structured manner using advanced LLMs.
