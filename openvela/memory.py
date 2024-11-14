@@ -179,7 +179,7 @@ class WorkflowMemory:
 
     memory_id: str
     messages: List[Dict[str, str]] = field(default_factory=list)
-    
+
     memory_format: MemoryFormat = field(default_factory=JsonMemoryFormat)
 
     def __post_init__(self):
@@ -223,6 +223,13 @@ class WorkflowMemory:
         else:
             self.messages = []
         return self.messages
+
+    def clear_memory(self):
+        """
+        Clears all messages from the workflow memory and persists the cleared state.
+        """
+        self.messages = []
+        self.save()
 
 
 @dataclass

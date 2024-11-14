@@ -1,8 +1,9 @@
 import json
 import logging
-from dataclasses import dataclass, field
-from typing import Dict, List, Optional
 import uuid
+from dataclasses import dataclass, field
+from typing import Dict, List, Optional, Required, TypedDict
+
 from openvela.llms import GroqModel, Model, OllamaModel
 from openvela.memory import JsonShortTermMemory, WorkflowMemory
 from openvela.tools import AIFunctionTool
@@ -20,7 +21,7 @@ class Agent:
     tools: Optional[List[AIFunctionTool]] = None
     tools_choice: Optional[str] = None
     memory_id: str = field(default_factory=lambda: str(uuid.uuid4()))
-
+    options: dict = field(default_factory=dict)
     name: str = field(init=False)
     prompt: str = field(init=False)
     memory: WorkflowMemory = field(init=False)
@@ -36,6 +37,7 @@ class Agent:
         self.input = ""
         self.extra_info = self.settings.get("extra_info", "")
         self.fluid_input = self.settings.get("input", "")
+        self.options = self.settings.get("options", {})
 
         # logging.info(f"{self.name} initialized with prompt: {self.prompt}")
 
@@ -295,16 +297,22 @@ class Agent:
         """
         single_thought_messages = []
         messages = self.memory.load()
-
+        extra_args = {**kwargs, **self.options}
         single_thought_messages.extend(messages)
+        if kwargs.get("max_previous_messages"):
+            single_thought_messages = single_thought_messages[
+                -int(kwargs.get("max_previous_messages")) :
+            ]
         single_thought_messages.insert(0, {"role": "system", "content": self.prompt})
+
         if self.extra_info:
             self.fluid_input += f"\n\n{self.extra_info}"
         single_thought_messages.append({"role": "user", "content": self.fluid_input})
         self.memory.add_message("user", self.fluid_input)
         print(f"\n\nAgent: {self.name}\n")
         print(f"\nUser: {self.fluid_input}\n")
-        response = self.model.generate_response(single_thought_messages, **kwargs)
+
+        response = self.model.generate_response(single_thought_messages, **extra_args)
         print(f"Assistant: {response}\n")
         self.memory.add_message("assistant", response)
         return response
@@ -434,6 +442,54 @@ class EndAgent(Agent):
     """
 
     pass
+
+
+@dataclass
+class FluidValidator(Agent):
+    """
+    Specialized agent that validates the task description before generating agents.
+    """
+
+    def validate_output(self, task_description: str, answer: str) -> dict:
+        class ValidatorOutput(TypedDict):
+            valid: Required[bool]
+            feedback: Required[str]
+
+        """
+        Validates the task description to ensure it meets the requirements for agent generation.
+
+        Args:
+            task_description (str): The task description to validate.
+
+        Returns:
+            bool: True if the task description is valid, False otherwise.
+        """
+        prompt = """
+        You are the FluidValidator. Your role is to validate the ANSWER provided based on the TASK.
+        You will assess the response to ensure it aligns with the requirements and expectations of the task.
+        Analyze the response and determine if it accurately addresses the main objectives and provides a comprehensive solution.
+        Evaluate the response based on the context of the task and the information provided in the ANSWER.
+        Provide feedback on the accuracy and relevance of the response, highlighting any areas that require improvement.
+        You will receive the TASK description and the ANSWER to evaluate in the following format:
+        "
+        TASK: [Task description]
+        ANSWER: [Response to evaluate]
+        "
+        Return the response in the following JSON format:
+            
+            {
+            "valid": boolean,
+            "feedback": str [Containing feedback on the response]
+            }
+        
+        """
+
+        messages = [
+            {"role": "system", "content": prompt},
+            {"role": "user", "content": f"TASK: {task_description}\nANSWER: {answer}"},
+        ]
+        response = self.model.generate_response(messages, format="json")
+        return ValidatorOutput(**json.loads(response))
 
 
 @dataclass
