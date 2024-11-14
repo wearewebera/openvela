@@ -2,7 +2,7 @@ import json
 import logging
 import uuid
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Required, TypedDict
 
 from openvela.llms import GroqModel, Model, OllamaModel
 from openvela.memory import JsonShortTermMemory, WorkflowMemory
@@ -442,6 +442,54 @@ class EndAgent(Agent):
     """
 
     pass
+
+
+@dataclass
+class FluidValidator(Agent):
+    """
+    Specialized agent that validates the task description before generating agents.
+    """
+
+    def validate_output(self, task_description: str, answer: str) -> dict:
+        class ValidatorOutput(TypedDict):
+            valid: Required[bool]
+            feedback: Required[str]
+
+        """
+        Validates the task description to ensure it meets the requirements for agent generation.
+
+        Args:
+            task_description (str): The task description to validate.
+
+        Returns:
+            bool: True if the task description is valid, False otherwise.
+        """
+        prompt = """
+        You are the FluidValidator. Your role is to validate the ANSWER provided based on the TASK.
+        You will assess the response to ensure it aligns with the requirements and expectations of the task.
+        Analyze the response and determine if it accurately addresses the main objectives and provides a comprehensive solution.
+        Evaluate the response based on the context of the task and the information provided in the ANSWER.
+        Provide feedback on the accuracy and relevance of the response, highlighting any areas that require improvement.
+        You will receive the TASK description and the ANSWER to evaluate in the following format:
+        "
+        TASK: [Task description]
+        ANSWER: [Response to evaluate]
+        "
+        Return the response in the following JSON format:
+            
+            {
+            "valid": boolean,
+            "feedback": str [Containing feedback on the response]
+            }
+        
+        """
+
+        messages = [
+            {"role": "system", "content": prompt},
+            {"role": "user", "content": f"TASK: {task_description}\nANSWER: {answer}"},
+        ]
+        response = self.model.generate_response(messages, format="json")
+        return ValidatorOutput(**json.loads(response))
 
 
 @dataclass

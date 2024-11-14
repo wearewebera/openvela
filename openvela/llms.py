@@ -1,3 +1,4 @@
+import inspect  # Import the inspect module
 import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
@@ -29,16 +30,6 @@ class Model(ABC):
     ) -> str:
         """
         Generates a response based on the provided messages and optional tools.
-
-        Args:
-            messages (list[dict]): A list of messages constituting the conversation.
-            files (Optional[list[Dict[str, Any]]], optional): A list of files to be processed. Defaults to None.
-            tools (Optional[list[AIFunctionTool]], optional): A list of tools available for the model. Defaults to None.
-            tool_choice (Optional[str], optional): The specific tool to use. Defaults to None.
-            format (Optional[str], optional): The desired format of the response. Defaults to None.
-
-        Returns:
-            str: The generated response.
         """
         pass
 
@@ -46,17 +37,9 @@ class Model(ABC):
     def _convert_to_messages(dict_list: list[dict]) -> Sequence[Message]:
         """
         Converts a list of dictionaries to a sequence of Message TypedDicts.
-
-        Args:
-            dict_list (list[dict]): The list of message dictionaries.
-
-        Returns:
-            Sequence[Message]: The converted sequence of messages.
-
-        Raises:
-            ValueError: If a message contains an invalid role.
         """
 
+        # (Implementation remains the same)
         def validate_role(role: str) -> Literal["user", "assistant", "system"]:
             allowed_roles = ("user", "assistant", "system")
             if role not in allowed_roles:
@@ -76,15 +59,8 @@ class Model(ABC):
     def _convert_to_files(files: list[Dict[str, Any]]) -> Sequence[Dict[str, Any]]:
         """
         Converts a list of file dictionaries to a sequence of processed file contents.
-
-        Args:
-            files (list[Dict[str, Any]]): The list of file dictionaries.
-
-        Returns:
-            Sequence[Dict[str, Any]]: The sequence of processed file contents.
-
-        Logs a warning if an unknown file type is encountered.
         """
+        # (Implementation remains the same)
         converted_files = []
         for file in files:
             if file["type"] == "audio":
@@ -99,25 +75,26 @@ class Model(ABC):
 
     @staticmethod
     def _functions_by_choices(
-        tools: list[AIFunctionTool], tool_choice: list[str]
+        tools: list[AIFunctionTool], tool_choice: str
     ) -> AIFunctionTool:
         """
         Selects a tool based on the provided tool choice.
-
-        Args:
-            tools (list[AIFunctionTool]): The list of available tools.
-            tool_choice (list[str]): The list containing the name of the chosen tool.
-
-        Returns:
-            AIFunctionTool: The selected tool.
-
-        Raises:
-            ValueError: If the specified tool is not found.
         """
+        # (Implementation remains the same)
         for tool in tools:
             if tool["function"]["name"] == tool_choice:
                 return tool
         raise ValueError(f"Tool with name {tool_choice} not found.")
+
+    @staticmethod
+    def _filter_kwargs_for_function(func, kwargs):
+        """
+        Filters kwargs to include only those parameters accepted by func.
+        """
+        sig = inspect.signature(func)
+        valid_params = sig.parameters.keys()
+        filtered_kwargs = {k: v for k, v in kwargs.items() if k in valid_params}
+        return filtered_kwargs
 
 
 @dataclass
@@ -127,7 +104,6 @@ class OllamaModel(Model):
     """
 
     base_url: str = "http://localhost:11434/"
-
     client: Client = field(init=False)
     model: str = "llama3.2"
 
@@ -135,7 +111,6 @@ class OllamaModel(Model):
         """
         Initializes the Ollama client upon instantiation.
         """
-
         self.client = Client(self.base_url)
 
     def generate_response(
@@ -149,30 +124,23 @@ class OllamaModel(Model):
     ) -> str:
         """
         Generates a response using the Ollama language model.
-
-        Args:
-            messages (list[dict]): The conversation history.
-            files (Optional[list[Dict[str, Any]]], optional): Files to process. Defaults to None.
-            tools (Optional[AIFunctionTool], optional): Available tools. Defaults to None.
-            tool_choice (Optional[str], optional): Specific tool to use. Defaults to None.
-            format (Optional[str], optional): Response format. Defaults to "".
-            options (Optional[Dict[str, Any]], optional): Additional options for the model. Defaults to {"num_ctx": 8192}.
-
-        Returns:
-            str: The generated response.
         """
         converted_messages = self._convert_to_messages(messages)
         selected_tools = (
             self._functions_by_choices(tools, tool_choice) if tools else None
         )
-        print()
+
+        # Filter kwargs for the client.chat function
+        filtered_kwargs = self._filter_kwargs_for_function(self.client.chat, kwargs)
+
         response = self.client.chat(
             model=self.model,
             messages=converted_messages,
             tools=selected_tools,
-            options=kwargs,
+            options=filtered_kwargs,  # Pass filtered kwargs as options
             format=format or kwargs.get("format"),
         )
+
         response_mapping: Mapping[str, Any] = next(iter([response]))
         return response_mapping["message"]["content"]
 
@@ -205,39 +173,38 @@ class OpenAIModel(Model):
     ) -> str:
         """
         Generates a response using the OpenAI language model.
-
-        Handles both text-based and audio inputs, performing transcription if audio files are provided.
-
-        Args:
-            messages (list[dict]): The conversation history.
-            files (Optional[list[Dict[str, Any]]], optional): Files to process. Defaults to None.
-            tools (Optional[AIFunctionTool], optional): Available tools. Defaults to None.
-            tool_choice (Optional[str], optional): Specific tool to use. Defaults to None.
-            **kwargs: Additional keyword arguments for the model.
-
-        Returns:
-            str: The generated response.
         """
         converted_messages = self._convert_to_messages(messages)
         converted_files = self._convert_to_files(files) if files else None
         selected_tools = (
             self._functions_by_choices(tools, tool_choice) if tools else None
         )
+
         if converted_files:
             for file in converted_files:
                 if isinstance(file, bytes) and file["type"] == "audio":
                     audio_transcription = self.transcribe_audio(file)
                     converted_messages.append(UserMessage(content=audio_transcription))
+                    # Filter kwargs for the chat completion create function
+                    filtered_kwargs = self._filter_kwargs_for_function(
+                        self.openai.chat.completions.create, kwargs
+                    )
                     response = self.openai.chat.completions.create(
-                        model=self.model, messages=converted_messages
+                        model=self.model,
+                        messages=converted_messages,
+                        **filtered_kwargs,
                     )
         else:
+            # Filter kwargs for the chat completion create function
+            filtered_kwargs = self._filter_kwargs_for_function(
+                self.openai.chat.completions.create, kwargs
+            )
             response = self.openai.chat.completions.create(
                 model=self.model,
                 messages=converted_messages,
                 tools=selected_tools,
                 tool_choice=tool_choice,
-                **kwargs,
+                **filtered_kwargs,
             )
 
         response_mapping: Mapping[str, Any] = next(iter([response]))
@@ -246,15 +213,13 @@ class OpenAIModel(Model):
     def transcribe_audio(self, audio_bytes: bytes) -> str:
         """
         Transcribes audio content into text using OpenAI's transcription model.
-
-        Args:
-            audio_bytes (bytes): The binary content of the audio file.
-
-        Returns:
-            str: The transcribed text.
         """
+        # Filter kwargs for the audio transcription function
+        filtered_kwargs = self._filter_kwargs_for_function(
+            self.openai.audio.transcriptions.create, {}
+        )
         response = self.openai.audio.transcriptions.create(
-            model=self.transcription_model, file=audio_bytes
+            model=self.transcription_model, file=audio_bytes, **filtered_kwargs
         )
         response_mapping: Mapping[str, Any] = next(iter([response]))
         return response_mapping["text"]
@@ -279,20 +244,11 @@ class GroqModel(Model):
     def _recognize_format(self, format: str) -> dict[str, str]:
         """
         Maps the requested format to Groq's expected response format.
-
-        Args:
-            format (str): The desired response format.
-
-        Returns:
-            dict[str, str]: The format mapping.
-
-        Raises:
-            ValueError: If an unknown format is provided.
         """
         if format == "json":
             return {"type": "json_object"}
         if format == "":
-            return
+            return {}
         else:
             raise ValueError(f"Unknown format: {format}")
 
@@ -307,28 +263,23 @@ class GroqModel(Model):
     ):
         """
         Generates a response using the Groq language model.
-
-        Args:
-            messages (list[dict]): The conversation history.
-            files (Optional[list[Dict[str, Any]]], optional): Files to process. Defaults to None.
-            tools (Optional[AIFunctionTool], optional): Available tools. Defaults to None.
-            tool_choice (Optional[str], optional): Specific tool to use. Defaults to None.
-            format (Optional[str], optional): Response format. Defaults to "".
-            **kwargs: Additional keyword arguments for the model.
-
-        Returns:
-            str: The generated response.
         """
         converted_messages = self._convert_to_messages(messages)
         selected_tools = (
             self._functions_by_choices(tools, tool_choice) if tools else None
         )
+
+        # Filter kwargs for the chat completion create function
+        filtered_kwargs = self._filter_kwargs_for_function(
+            self.client.chat.completions.create, kwargs
+        )
+
         response = self.client.chat.completions.create(
             model=self.model,
             messages=converted_messages,
             tools=selected_tools,
             response_format=self._recognize_format(format),
-            **kwargs,
+            **filtered_kwargs,
         )
 
         return response.choices[0].message.content

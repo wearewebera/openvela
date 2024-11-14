@@ -224,6 +224,13 @@ class WorkflowMemory:
             self.messages = []
         return self.messages
 
+    def clear_memory(self):
+        """
+        Clears all messages from the workflow memory and persists the cleared state.
+        """
+        self.messages = []
+        self.save()
+
 
 @dataclass
 class AgentMemory:
