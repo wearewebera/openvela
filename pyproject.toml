@@ -6,7 +6,7 @@ authors = ["Joel Zamboni <joel.zamboni@webera.com>", "Augusto Izepon <augusto.iz
 readme = "README.md"
 
 [tool.poetry.dependencies]
-python = "^3.12"
+python = "^3.9"
 openai = "^1.52.1"
 ollama = "^0.3.3"
 pillow = "^11.0.0"
