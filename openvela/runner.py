@@ -64,6 +64,8 @@ def run_workflow_from_args(args):
         {
             "provider": provider,
             "workflow_type": workflow_type,
+            "base_url_or_api_key": base_url_or_api_key,
+            "model": model_name, 
             "model_instance": model_instance,
             "options": options_dict,
             "agents_definitions": agents_definitions,
