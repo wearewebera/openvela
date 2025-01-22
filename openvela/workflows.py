@@ -26,8 +26,8 @@ class Workflow(ABC):
         task: Task,
         agents: List[Agent],
         supervisor: SupervisorAgent,
-        start_agent: Optional[StartAgent],
-        end_agent: Optional[EndAgent],
+        start_agent: Optional[StartAgent] = None,
+        end_agent: Optional[EndAgent] = None,
         subworkflows: Optional[List["Workflow"]] = None,
     ):
         """
@@ -258,6 +258,200 @@ class TreeOfThoughtWorkflow(Workflow):
         # Combine outputs
         final_output = self.supervisor.combine_outputs(final_outputs)
         return final_output, self.memory_id
+
+
+class AutoSelectWorkflow(Workflow):
+    def __init__(
+        self,
+        task: Task,
+        agents: List[Agent],
+        supervisor: SupervisorAgent,
+        subworkflows: Optional[List["Workflow"]] = None,
+        validate_output: bool = False,
+        max_attempts: int = 3,
+        validator: Optional[FluidValidator] = None,
+    ):
+        """
+        Initializes the AutoSelectWorkflow instance.
+
+        Args:
+            task (Task): The task to be executed within the workflow.
+            agents (List[Agent]): A list of intermediary agents involved in the workflow.
+            supervisor (SupervisorAgent): The supervisor agent overseeing the workflow.
+            subworkflows (Optional[List["Workflow"]], optional): A list of sub-workflows. Defaults to None.
+            validate_output (bool, optional): Whether to validate the output and remake the loop if invalid. Defaults to False.
+            max_attempts (int, optional): Maximum number of attempts to get a valid output. Defaults to 3.
+            validator (Optional[FluidValidator], optional): The validator agent to use. Defaults to None.
+        """
+        super().__init__(task, agents, supervisor, subworkflows)
+        self.validate_output = validate_output
+        self.max_attempts = max_attempts
+        if validator is None and validate_output:
+            self.validator = FluidValidator(model=self.agents[0].model, settings={})
+        else:
+            self.validator = validator
+        self.final_output = ""
+
+    def run(self, **kwargs) -> str:
+        logging.info("Starting AutoSelectWorkflow.")
+        self.supervisor.agents = self.agents
+        self.supervisor.task = self.task.prompt
+
+        # ---------------
+        # Validation loop
+        # ---------------
+        if self.validate_output:
+            logging.info("Output validation is enabled. Entering validation loop.")
+            max_iterations = self.max_attempts
+            iteration = 0
+
+            while iteration < max_iterations:
+                iteration += 1
+                logging.info(f"Starting iteration {iteration}/{max_iterations}.")
+
+                # Clear memory at each iteration to start fresh
+                self.memory.clear_memory()
+                logging.debug("Memory cleared for new iteration.")
+
+                # For the very first iteration, let the supervisor pick the first agent
+                if iteration == 1:
+                    logging.debug("First iteration: letting supervisor pick agent.")
+                    decision = self.supervisor.choose_next_agent(
+                        current_agent=None, latest_output="Starting new iteration"
+                    )
+                else:
+                    logging.debug("Re-iterating after invalidation.")
+                    decision = self.supervisor.choose_next_agent(
+                        current_agent=None,
+                        latest_output="Re-iterating after invalidation",
+                    )
+
+                next_agent_name = decision["next_agent"]
+                next_input = decision["next_input"]
+                logging.info(
+                    f"Supervisor chose agent: {next_agent_name} with input: {next_input}"
+                )
+
+                # If supervisor says FINISH right away, break
+                if next_agent_name == "FINISH":
+                    logging.info("Supervisor indicated FINISH immediately.")
+                    self.final_output = next_input
+                    break
+
+                # Otherwise, run the selected agent chain
+                output_dict = self._run_agent_chain(
+                    next_agent_name, next_input, **kwargs
+                )
+                logging.info(f"Agent chain returned: {output_dict}")
+
+                # If the final output for that chain is "FINISH," or the supervisor chooses FINISH
+                if output_dict["next_agent"] == "FINISH":
+                    self.final_output = output_dict["output"]
+                else:
+                    self.final_output = output_dict["output"]
+
+                # Validate the output
+                logging.debug(f"Validating output: {self.final_output}")
+                validation_result = self.validator.validate_output(
+                    task_description=self.task.prompt, answer=self.final_output
+                )
+
+                if validation_result.get("valid"):
+                    logging.info("Output is valid. Exiting validation loop.")
+                    return self.final_output
+                else:
+                    logging.warning(f"Iteration {iteration}: Output invalid. Retrying.")
+                    continue
+
+            # If we exit the while due to max iterations
+            logging.warning("Maximum iterations reached without valid output.")
+            return self.final_output
+
+        # ------------------------------------------------
+        # If no validation is requested, do simpler logic
+        # ------------------------------------------------
+        else:
+            logging.info("Validation disabled. Running single agent chain flow.")
+            decision = self.supervisor.choose_next_agent(None, "Workflow started.")
+            next_agent_name = decision["next_agent"]
+            next_input = decision["next_input"]
+            logging.info(
+                f"Supervisor chose agent: {next_agent_name} with input: {next_input}"
+            )
+
+            # If it says FINISH right away, we are done
+            if next_agent_name == "FINISH":
+                logging.info(
+                    "Supervisor indicated FINISH immediately. Returning final output."
+                )
+                return next_input
+
+            # Otherwise, proceed with agent chain
+            output_dict = self._run_agent_chain(next_agent_name, next_input, **kwargs)
+            logging.info(f"Agent chain returned: {output_dict}")
+
+            if output_dict["next_agent"] == "FINISH":
+                return output_dict["output"]
+            else:
+                return output_dict["output"]
+
+    def _run_agent_chain(
+        self, start_agent_name: str, agent_input: str, **kwargs
+    ) -> dict:
+        """
+        Helper method to run a chain of agents under supervisor direction
+        until a FINISH or an exception occurs. Returns a dict:
+           {
+             "next_agent": "FINISH" or <AgentName>,
+             "output": <agent's final output>
+           }
+        """
+        logging.debug(
+            f"Starting agent chain with {start_agent_name}, initial input: {agent_input}"
+        )
+        current_agent = [a for a in self.agents if a.name == start_agent_name]
+        if not current_agent:
+            logging.warning(
+                f"No agent found named {start_agent_name}. Finishing immediately."
+            )
+            return {"next_agent": "FINISH", "output": agent_input}
+        current_agent = current_agent[0]
+
+        # Clear memory for the chain run
+
+        logging.debug("Memory cleared at the start of agent chain.")
+
+        while True:
+            # Let the current agent process
+            output = current_agent.single_thought_process(**kwargs)
+
+            logging.info(f"Agent '{current_agent.name}' output: {output}")
+
+            # Check if the agent decided to FINISH
+            if output == "FINISH":
+                logging.info(f"Agent '{current_agent.name}' indicated FINISH.")
+                return {"next_agent": "FINISH", "output": output["output"]}
+
+            # Otherwise, let the supervisor pick the next agent
+            decision = self.supervisor.choose_next_agent(current_agent, output)
+            next_agent_name = decision["next_agent"]
+            next_input = decision["next_input"]
+            logging.info(
+                f"Supervisor chose next agent: {next_agent_name} with input: {next_input}"
+            )
+
+            if next_agent_name == "FINISH":
+                logging.info("Supervisor indicated FINISH.")
+                return {"next_agent": "FINISH", "output": next_input}
+
+            # Switch to the chosen agent
+            next_agent = [a for a in self.agents if a.name == next_agent_name]
+            if not next_agent:
+                logging.warning(f"No agent found named {next_agent_name}. Finishing.")
+                return {"next_agent": "FINISH", "output": next_input}
+            current_agent = next_agent[0]
+
+            # Update memory
 
 
 class FluidChainOfThoughtWorkflow(Workflow):

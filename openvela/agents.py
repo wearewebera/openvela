@@ -2,7 +2,7 @@ import json
 import logging
 import uuid
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Required, TypedDict
+from typing import Dict, List, Literal, Optional, Required, TypedDict
 
 from openvela.llms import GroqModel, Model, OllamaModel
 from openvela.memory import JsonShortTermMemory, WorkflowMemory
@@ -33,6 +33,7 @@ class Agent:
         """
         self.name = self.settings.get("name", "Agent")
         self.prompt = self.settings.get("prompt", "")
+        self.description = self.settings.get("description", "")
         self.memory = WorkflowMemory(memory_id=self.memory_id)  # Set the memory prompt
         self.input = ""
         self.extra_info = self.settings.get("extra_info", "")
@@ -40,231 +41,6 @@ class Agent:
         self.options = self.settings.get("options", {})
 
         # logging.info(f"{self.name} initialized with prompt: {self.prompt}")
-
-    def process(self, input_data: str) -> str:
-        """
-        Executes the agent's processing sequence using the Chain of Thought approach.
-
-        Args:
-            input_data (str): The input data to process.
-
-        Returns:
-            str: The final output after processing.
-        """
-        observed_data = self.observe(input_data)
-        context = self.understand(observed_data)
-        goals = self.identify_goals(context)
-        info = self.retrieve_information(goals)
-        plan = self.plan(info)
-        analysis = self.analyze(plan)
-        decision = self.decide(analysis)
-        action_result = self.execute(decision)
-        self.monitor(action_result)
-        self.reflect(action_result)
-        self.learn(action_result)
-        output = self.communicate(action_result)
-        return output
-
-    def observe(self, input_data: str) -> str:
-        """
-        Observes and records the input data.
-
-        Args:
-            input_data (str): The data to observe.
-
-        Returns:
-            str: The observed data.
-        """
-        logging.debug(f"{self.name} observes input data.")
-        self.input = input_data
-        return input_data
-
-    def understand(self, data: str) -> str:
-        """
-        Processes the observed data to form an understanding.
-
-        Utilizes the language model to generate a response based on current memory.
-
-        Args:
-            data (str): The data to understand.
-
-        Returns:
-            str: The model's understanding of the data.
-        """
-        logging.debug(f"{self.name} is understanding the data.")
-        messages = self.memory.load()
-        response = self.model.generate_response(messages)
-        self.memory.add_message("assistant", response)
-        return response
-
-    def identify_goals(self, context: str) -> List[str]:
-        """
-        Identifies goals based on the provided context.
-
-        Constructs a prompt incorporating the main task and context, and generates goals using the model.
-
-        Args:
-            context (str): The context from which to identify goals.
-
-        Returns:
-            List[str]: A list of identified goals.
-        """
-        logging.debug(f"{self.name} is identifying goals for the main task")
-        prompt = f"Based on the following context, identify the objectives for the main task '{self.input}':\n{context}"
-
-        messages = self.memory.load()
-        messages.append({"role": "user", "content": prompt})
-        response = self.model.generate_response(messages)
-        goals = response.strip().split(
-            "\n"
-        )  # Assuming the goals are separated by new lines
-        self.memory.add_message("assistant", response)
-        return goals
-
-    def retrieve_information(self, goals: List[str]) -> str:
-        """
-        Retrieves information relevant to the identified goals.
-
-        Args:
-            goals (List[str]): The list of goals to retrieve information for.
-
-        Returns:
-            str: The retrieved information.
-        """
-        logging.debug(f"{self.name} is retrieving information.")
-        prompt = f"Retrieve information relevant to the following goals for the main task '{self.input}':\n{goals}"
-
-        messages = self.memory.load()
-        messages.append({"role": "user", "content": prompt})
-        response = self.model.generate_response(messages)
-        self.memory.add_message("assistant", response)
-        return response
-
-    def plan(self, info: str) -> str:
-        """
-        Creates a plan based on the retrieved information.
-
-        Args:
-            info (str): The information to base the plan on.
-
-        Returns:
-            str: The formulated plan.
-        """
-        logging.debug(f"{self.name} is planning.")
-        prompt = f"Based on the following information, create a plan for the main task '{self.input}':\n{info}"
-
-        messages = self.memory.load()
-        messages.append({"role": "user", "content": prompt})
-        response = self.model.generate_response(messages)
-        self.memory.add_message("assistant", response)
-        return response
-
-    def analyze(self, plan: str) -> str:
-        """
-        Analyzes the created plan for effectiveness and potential issues.
-
-        Args:
-            plan (str): The plan to analyze.
-
-        Returns:
-            str: The analysis of the plan.
-        """
-        logging.debug(f"{self.name} is analyzing the plan.")
-        prompt = f"Analyze the following plan for effectiveness and potential issues for the main task '{self.input}':\n{plan}"
-
-        messages = self.memory.load()
-        messages.append({"role": "user", "content": prompt})
-        response = self.model.generate_response(messages)
-        self.memory.add_message("assistant", response)
-        return response
-
-    def decide(self, analysis: str) -> str:
-        """
-        Makes a decision based on the analysis of the plan.
-
-        Args:
-            analysis (str): The analysis to base the decision on.
-
-        Returns:
-            str: The decision made.
-        """
-        logging.debug(f"{self.name} is making a decision.")
-        prompt = f"Based on the analysis, decide on the best course of action for the main task '{self.input}':\n{analysis}"
-
-        messages = self.memory.load()
-        messages.append({"role": "user", "content": prompt})
-        response = self.model.generate_response(messages)
-        self.memory.add_message("assistant", response)
-        return response
-
-    def execute(self, decision: str) -> str:
-        """
-        Executes the decision and provides the result.
-
-        Args:
-            decision (str): The decision to execute.
-
-        Returns:
-            str: The result of the execution.
-        """
-        logging.debug(f"{self.name} is executing the decision.")
-        prompt = f"Execute the following decision and provide the result for the main task '{self.input}':\n{decision}"
-        execute_messages = []
-        messages = self.memory.load()
-        for message in messages:
-            if message["role"] == "assistant":
-                execute_messages.append(message)
-        execute_messages.append({"role": "user", "content": prompt})
-        response = self.model.generate_response(execute_messages)
-        self.memory.add_message("assistant", response)
-        return response
-
-    def monitor(self, result: str):
-        """
-        Monitors the result of the execution.
-
-        Placeholder for implementing monitoring logic as needed.
-
-        Args:
-            result (str): The result to monitor.
-        """
-        logging.debug(f"{self.name} is monitoring the result.")
-        pass
-
-    def reflect(self, result: str):
-        """
-        Reflects on the result to derive lessons learned.
-
-        Args:
-            result (str): The result to reflect upon.
-        """
-        prompt = f"Reflect on the following result and note any lessons learned for the main task '{self.input}':\n{result}"
-
-        messages = self.memory.load()
-        messages.append({"role": "user", "content": prompt})
-        response = self.model.generate_response(messages)
-        self.memory.add_message("assistant", response)
-
-    def learn(self, result: str):
-        """
-        Placeholder for implementing learning logic based on the result.
-
-        Args:
-            result (str): The result to learn from.
-        """
-        pass
-
-    def communicate(self, result: str) -> str:
-        """
-        Prepares the final output to be communicated.
-
-        Args:
-            result (str): The result to communicate.
-
-        Returns:
-            str: The final output.
-        """
-        return result
 
     def generate_thoughts(self, input_data: str) -> List[str]:
         """
@@ -308,13 +84,13 @@ class Agent:
         if self.extra_info:
             self.fluid_input += f"\n\n{self.extra_info}"
         single_thought_messages.append({"role": "user", "content": self.fluid_input})
-        self.memory.add_message("user", self.fluid_input)
+        self.memory.add_message("", "user", self.fluid_input)
         print(f"\n\nAgent: {self.name}\n")
         print(f"\nUser: {self.fluid_input}\n")
 
         response = self.model.generate_response(single_thought_messages, **extra_args)
         print(f"Assistant: {response}\n")
-        self.memory.add_message("assistant", response)
+        self.memory.add_message(self.name, "assistant", response)
         return response
 
     def respond(self, input_data: str) -> str:
@@ -356,72 +132,141 @@ class Agent:
 @dataclass
 class SupervisorAgent(Agent):
     """
-    Specialized agent that supervises the workflow, managing the sequence of agents and evaluating their outputs.
+    Specialized agent that supervises the workflow, managing the sequence of
+    agents and evaluating their outputs.
     """
 
-    end_agent: Agent = None
-    start_agent: Agent = None
+    task: str = ""
+    agent_type: Literal["selector", "combiner", "simple"] = "simple"
+    end_agent: Optional[Agent] = None
+    start_agent: Optional[Agent] = None
     agents: List[Agent] = field(default_factory=list)
 
-    def choose_next_agent(self, current_agent: Agent, output: str) -> Agent:
+    def choose_next_agent(self, current_agent: Agent, latest_output: str) -> dict:
         """
-        Determines the next agent in the workflow based on the current agent's output.
+        Decide which agent should act next or whether the workflow should FINISH.
 
-        Args:
-            current_agent (Agent): The agent that just completed processing.
-            output (str): The output from the current agent.
+        Returns a dict of the form:
+            {
+                "next_agent": "<AgentName or FINISH>",
+                "next_input": "<content for the next agent or final output>"
+            }
 
-        Returns:
-            Agent: The next agent to process the output. Defaults to end_agent if no further agents.
+        The workflow can interpret "FINISH" in "next_agent" to conclude the process.
         """
-        try:
-            if current_agent == self.start_agent:
-                return self.agents[0]
-            else:
-                index = self.agents.index(current_agent)
-                return self.agents[index + 1]
-        except (ValueError, IndexError):
-            return self.end_agent
+        # -----------------------------
+        # SIMPLE MODE: Move in order
+        # -----------------------------
+        if self.agent_type == "simple":
+            try:
+                # If we're at the start, return the first actual agent
+                if current_agent == self.start_agent:
+                    next_agent = self.agents[0]
+                else:
+                    index = self.agents.index(current_agent)
+                    next_agent = self.agents[index + 1]
+                return {
+                    "next_agent": next_agent.name,
+                    "next_input": latest_output,  # pass along the output as the next input
+                }
+            except (ValueError, IndexError):
+                # Reached the end or invalid index - return FINISH
+                return {"next_agent": "FINISH", "next_input": latest_output}
 
-    def evaluate_thoughts(self, thoughts: List[str]) -> List[str]:
-        """
-        Evaluates a list of thoughts and selects the best ones.
+        # --------------------------------
+        # SELECTOR MODE: Use the LLM to decide
+        # --------------------------------
+        elif self.agent_type == "selector":
+            try:
+                # 1) Prepare agent list
+                agent_list = "\n".join(
+                    [
+                        f"Agent Name: {agent.name}\nAgent Description: {agent.description}"
+                        for agent in self.agents
+                    ]
+                )
 
-        Args:
-            thoughts (List[str]): The list of thoughts to evaluate.
+                # 2) Load conversation from memory
+                messages = self.memory.load_messages_with_agent_names()
+                # Convert messages so that any assistant role is replaced with the agent_name (if available)
+                for message in messages:
+                    if (message["role"] == "assistant") and ("agent_name" in message):
+                        message["role"] = message["agent_name"]
 
-        Returns:
-            List[str]: The selected best thoughts.
-        """
-        prompt = f"Evaluate the following thoughts and select the best ones for the main task '{self.input}'and return just then separated by ',':\n{thoughts}"
+                # 3) Build a conversation string or keep it in a list as needed
+                conversation = "\n".join(
+                    [f"{msg['role']}: {msg['content']}" for msg in messages]
+                )
 
-        messages = self.memory.load()
-        messages.append({"role": "user", "content": prompt})
-        response = self.model.generate_response(messages)
-        best_thoughts = response.strip().split(
-            ","
-        )  # Assuming thoughts are separated by commas
-        self.memory.add_message("assistant", response)
-        return best_thoughts
+                # 4) System prompt for the LLM
+                system_instructions = f"""
+You are the Supervisor Agent. Your role is to determine the next action for fulfilling the original TASK. 
+Consider the following:
+- AGENT LIST:
+{agent_list}
 
-    def combine_outputs(self, outputs: List[str]) -> str:
-        """
-        Combines multiple outputs into a coherent final result.
+- LATEST AGENT OUTPUT:
+{latest_output}
 
-        Args:
-            outputs (List[str]): The list of outputs to combine.
+- TASK:
+{self.task}
 
-        Returns:
-            str: The combined final result.
-        """
-        logging.debug(f"{self.name} is combining outputs.")
-        prompt = f"Combine the following outputs into a coherent result for the main task '{self.input}':\n{outputs}"
+If the LATEST AGENT OUTPUT has completely satisfied the TASK requirements, respond in JSON with:
+{{
+  "next_agent": "FINISH",
+  "next_input": "<create the most detailed answer for the TASK to serve as final output based on the conversation>"
+}}
 
-        messages = self.memory.load()
-        messages.append({"role": "user", "content": prompt})
-        response = self.model.generate_response(messages)
-        self.memory.add_message("assistant", response)
-        return response
+Otherwise, select the best-suited agent from the AGENT LIST and specify the new input or instructions for that agent.
+Then respond in JSON with:
+{{
+  "next_agent": "<AgentName>",
+  "thinking": "<reasoning or explanation for the choice>",
+  "next_input": "<as a user you can improve the accuracy of the answers giving structions instructions or prompt for the next agent to recieve a better answer from the agent>"
+}}
+
+Replace <AgentName> with the actual name of the chosen agent, and 
+<instructions or prompt for the next agent> with the content or instructions
+you want that agent to process next.
+                """
+
+                # 5) Build messages for the LLM
+                llm_messages = [
+                    {"role": "system", "content": system_instructions},
+                    {"role": "user", "content": "CONVERSATION:\n" + conversation},
+                ]
+
+                # 6) Generate a response in JSON
+                response = self.model.generate_response(llm_messages, format="json")
+
+                # 7) Parse JSON
+                parsed_response = json.loads(response)
+                print(f"\nSelector response: {parsed_response}\n\n")
+                # 8) Return the structure that the workflow expects
+                return {
+                    "next_agent": parsed_response.get("next_agent", "FINISH"),
+                    "next_input": parsed_response.get("next_input", latest_output),
+                }
+
+            except Exception as e:
+                logging.error(f"Error in supervisor agent (selector mode): {e}")
+                # If there's any error, gracefully end
+                return {"next_agent": "FINISH", "next_input": latest_output}
+
+        # -----------------------------
+        # COMBINER MODE (stub example)
+        # -----------------------------
+        elif self.agent_type == "combiner":
+            # If you have a specific combiner logic, implement here.
+            # For now, just finish or pick next in a naive way
+            return {"next_agent": "FINISH", "next_input": latest_output}
+
+        # -----------------------------
+        # UNKNOWN MODE
+        # -----------------------------
+        else:
+            logging.warning(f"Unknown supervisor mode: {self.agent_type}. Finishing.")
+            return {"next_agent": "FINISH", "next_input": latest_output}
 
 
 @dataclass
@@ -684,3 +529,57 @@ class FluidAgent(Agent):
             agent = Agent(settings=agent_def, memory_id=memory_id, model=self.model)
             agents.append(agent)
         return agents
+
+
+@dataclass
+class SQLAgent(Agent):
+    """
+    Specialized Agent for generating read-only SQL queries.
+    Supports multiple SQL dialects (PostgreSQL, MySQL, SQL Server, Supabase, etc.).
+    """
+
+    # A list of dicts, each with a "question" and an "sql_query" example
+    example_queries: List[Dict[str, str]] = field(default_factory=list)
+
+    # A string describing the database schema:
+    # e.g., "Table users(id INT, name VARCHAR), Table orders(id INT, user_id INT, ...)"
+    database_structure: str = ""
+
+    def __post_init__(self):
+        super().__post_init__()
+        # You can add any additional setup for SQLAgent here
+
+    def generate_sql_query(self, user_question: str) -> str:
+        """
+        Generates a SQL query (read-only) for the given user question.
+        The agent must reason about the steps needed to produce a correct SELECT query.
+        """
+        logging.debug(f"{self.name} is generating a SQL query.")
+
+        # Create a reasoning-based prompt
+        reasoning_prompt = (
+            f"Database structure:\n{self.database_structure}\n\n"
+            f"The user asked:\n'{user_question}'\n\n"
+            f"You must generate a read-only SQL query (SELECT only). "
+            f"Ensure you detail your chain of thought for how you arrive at the final query.\n"
+            f"Do NOT perform INSERT, UPDATE, or DELETE.\n"
+        )
+
+        messages = self.memory.load()
+        messages.append({"role": "system", "content": reasoning_prompt})
+        response = self.model.generate_response(messages)
+        self.memory.add_message("assistant", response)
+
+        # In a real scenario, you might parse the response for the actual SQL code
+        # or trust the response to be strictly the SQL query.
+        # Here we'll just return the entire response for illustration.
+        return response
+
+    def respond(self, input_data: str) -> str:
+        """
+        Specialized respond method for SQLAgent: calls generate_sql_query directly.
+        """
+        # Optionally, you could do a chain-of-thought approach as in the base class
+        # For now, we directly generate a SQL query
+        query = self.generate_sql_query(input_data)
+        return query

@@ -1,4 +1,4 @@
-from typing import Literal, TypedDict
+from typing import Literal, Optional, TypedDict
 
 
 class Message(TypedDict):
@@ -6,6 +6,7 @@ class Message(TypedDict):
     Represents a generic message structure with a role and content.
     """
 
+    agent_name: Optional[str]
     role: Literal["user", "assistant", "system"]
     content: str
 
