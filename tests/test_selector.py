@@ -14,7 +14,7 @@ logging.basicConfig(level=logging.INFO)
 
 # Initialize the GroqModel with your valid API key
 model_instance = GroqModel(
-    api_key="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"
+    api_key=""
 )
 
 # ---------------------------------------------------------------------------------
