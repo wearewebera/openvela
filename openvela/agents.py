@@ -4,6 +4,8 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Dict, List, Literal, Optional, Required, TypedDict
 
+from sqlalchemy import create_engine, text
+
 from openvela.llms import GroqModel, Model, OllamaModel
 from openvela.memory import JsonShortTermMemory, WorkflowMemory
 from openvela.tools import AIFunctionTool
@@ -137,7 +139,7 @@ class SupervisorAgent(Agent):
     """
 
     task: str = ""
-    agent_type: Literal["selector", "combiner", "simple"] = "simple"
+    agent_type: Literal["selector", "simple"] = "simple"
     end_agent: Optional[Agent] = None
     start_agent: Optional[Agent] = None
     agents: List[Agent] = field(default_factory=list)
@@ -226,8 +228,6 @@ Then respond in JSON with:
 }}
 
 Replace <AgentName> with the actual name of the chosen agent, and 
-<instructions or prompt for the next agent> with the content or instructions
-you want that agent to process next.
                 """
 
                 # 5) Build messages for the LLM
@@ -253,17 +253,6 @@ you want that agent to process next.
                 # If there's any error, gracefully end
                 return {"next_agent": "FINISH", "next_input": latest_output}
 
-        # -----------------------------
-        # COMBINER MODE (stub example)
-        # -----------------------------
-        elif self.agent_type == "combiner":
-            # If you have a specific combiner logic, implement here.
-            # For now, just finish or pick next in a naive way
-            return {"next_agent": "FINISH", "next_input": latest_output}
-
-        # -----------------------------
-        # UNKNOWN MODE
-        # -----------------------------
         else:
             logging.warning(f"Unknown supervisor mode: {self.agent_type}. Finishing.")
             return {"next_agent": "FINISH", "next_input": latest_output}
@@ -535,51 +524,110 @@ class FluidAgent(Agent):
 class SQLAgent(Agent):
     """
     Specialized Agent for generating read-only SQL queries.
-    Supports multiple SQL dialects (PostgreSQL, MySQL, SQL Server, Supabase, etc.).
+    It uses the language model to generate or refine queries based on the user's request,
+    then executes them via SQLAlchemy and returns the results.
     """
 
-    # A list of dicts, each with a "question" and an "sql_query" example
+    # Example of user questions and reference queries that can be provided
     example_queries: List[Dict[str, str]] = field(default_factory=list)
-
-    # A string describing the database schema:
-    # e.g., "Table users(id INT, name VARCHAR), Table orders(id INT, user_id INT, ...)"
+    # The SQL dialect (e.g., "postgresql", "mysql", "sqlite", etc.)
+    sql_dialect: str = ""
+    # The SQLAlchemy database URL (e.g., "postgresql://user:password@host/dbname")
+    sqlalchemy_engine_url: str = ""
+    # A textual description of the database structure/schema for context
     database_structure: str = ""
 
-    def __post_init__(self):
-        super().__post_init__()
-        # You can add any additional setup for SQLAgent here
-
-    def generate_sql_query(self, user_question: str) -> str:
+    def single_thought_process(self, **kwargs) -> str:
         """
-        Generates a SQL query (read-only) for the given user question.
-        The agent must reason about the steps needed to produce a correct SELECT query.
-        """
-        logging.debug(f"{self.name} is generating a SQL query.")
+        Uses the language model to generate or refine a SQL query from the user's request,
+        then executes the query in a read-only manner and returns the results.
 
-        # Create a reasoning-based prompt
-        reasoning_prompt = (
-            f"Database structure:\n{self.database_structure}\n\n"
-            f"The user asked:\n'{user_question}'\n\n"
-            f"You must generate a read-only SQL query (SELECT only). "
-            f"Ensure you detail your chain of thought for how you arrive at the final query.\n"
-            f"Do NOT perform INSERT, UPDATE, or DELETE.\n"
+        Args:
+            **kwargs: Additional arguments (passed from the workflow).
+
+        Returns:
+            str: A string containing the query results or an error message.
+        """
+        # 1. Load any existing messages from memory
+        messages = self.memory.load()
+        # 2. Create a system instruction to guide the LLM about how to form the query
+        system_prompt = (
+            f"You are a read-only SQL Agent using the '{self.sql_dialect}' dialect. "
+            "You have access to the following database structure:\n"
+            f"{self.database_structure}\n\n"
+            "You are ONLY allowed to generate SELECT queries or other non-mutating statements. "
+            "You must not attempt INSERT, UPDATE, DELETE, DROP, or ALTER. "
+            "When returning the SQL query, you MUST enclose it in valid JSON with the key 'sql_query'. "
+            "Example:\n\n"
+            '{"sql_query": "SELECT * FROM table_name WHERE condition;"}'
         )
 
-        messages = self.memory.load()
-        messages.append({"role": "system", "content": reasoning_prompt})
-        response = self.model.generate_response(messages)
-        self.memory.add_message("assistant", response)
+        # 3. Build the user content from the current fluid input
+        user_content = (
+            f"User request:\n{self.fluid_input}\n\n"
+            "Here are some example queries that might help:\n"
+        )
+        for ex in self.example_queries:
+            user_content += (
+                f"- Question: {ex.get('question')}\n  Query: {ex.get('sql_query')}\n"
+            )
 
-        # In a real scenario, you might parse the response for the actual SQL code
-        # or trust the response to be strictly the SQL query.
-        # Here we'll just return the entire response for illustration.
-        return response
+        user_content += "\nPlease generate a valid SELECT query (or other non-mutating SQL) in JSON format."
 
-    def respond(self, input_data: str) -> str:
-        """
-        Specialized respond method for SQLAgent: calls generate_sql_query directly.
-        """
-        # Optionally, you could do a chain-of-thought approach as in the base class
-        # For now, we directly generate a SQL query
-        query = self.generate_sql_query(input_data)
-        return query
+        # 4. Prepare the message list to send to the LLM
+        query_messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_content},
+        ]
+
+        # 5. Optionally limit the conversation history if requested
+        max_prev = kwargs.get("max_previous_messages")
+        if max_prev is not None:
+            messages = messages[-int(max_prev) :]
+
+        # 6. Insert the conversation messages before the new system/user instructions
+        query_messages[1:1] = messages
+
+        # 7. Generate the LLM response that should contain a JSON with "sql_query"
+        llm_response = self.model.generate_response(query_messages, format="json")
+
+        # 8. Attempt to parse the LLM response as JSON and extract the query
+        try:
+            response_json = json.loads(llm_response)
+            sql_query = response_json.get("sql_query", "").strip()
+        except json.JSONDecodeError:
+            logging.error("Failed to parse LLM response as valid JSON.")
+            return "Error: The agent could not produce valid JSON for the SQL query."
+
+        # 9. Basic safety check to ensure it's a read-only query (SELECT, SHOW, etc.)
+        upper_query = sql_query.upper()
+        if not upper_query.startswith("SELECT") and not upper_query.startswith("SHOW"):
+            return (
+                "Error: The generated query is not read-only. "
+                "SQLAgent is restricted to read-only statements."
+            )
+
+        # 10. Execute the query using SQLAlchemy
+        try:
+            engine = create_engine(self.sqlalchemy_engine_url)
+            with engine.connect() as connection:
+                # Optional: enforce read-only at the database level if supported
+                # For example, PostgreSQL might support: connection.execute("SET TRANSACTION READ ONLY")
+
+                result = connection.execute(text(sql_query))
+                rows = result.fetchall()
+
+            # Format the results as a string
+            # (For bigger sets, you might want to limit or page the results.)
+            header = result.keys() if result.returns_rows else []
+            rows_str = "\n".join([str(dict(zip(header, row))) for row in rows])
+
+            self.memory.add_message("assistant", f"Executed query:\n{sql_query}")
+            # 11. Return the query results
+            if not rows:
+                return f"No rows returned for query:\n{sql_query}"
+            return f"Query Results:\n{rows_str}"
+
+        except Exception as e:
+            logging.error(f"Error executing SQL query: {e}")
+            return f"Error executing SQL query:\n{str(e)}"
