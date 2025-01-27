@@ -53,17 +53,15 @@ class Workflow(ABC):
             memory_id=self.memory_id,
             memory_format=JsonMemoryFormat(),
         )
+        self.set_memory_on_agents()
+        self.set_supervisor_memory()
 
-        # Initialize AgentMemory to store agents' info
-        self.agent_memory = AgentMemory(
-            file_path=f".openvela/{self.memory_id}_agents_info.json",
-            memory_format=JsonMemoryFormat(),
-        )
+    def set_memory_on_agents(self):
+        for agent in self.agents:
+            agent.set_memory(self.memory)
 
-        # Store agents' info using AgentMemory
-        for agent in self.agents + [self.start_agent, self.end_agent, self.supervisor]:
-            if agent is not None:
-                self.agent_memory.add_agent_info(agent.name, agent.prompt)
+    def set_supervisor_memory(self):
+        self.supervisor.set_memory(self.memory)
 
     @abstractmethod
     def run(self, **kwargs) -> str:
@@ -145,25 +143,25 @@ class ChainOfThoughtWorkflow(Workflow):
 
                 while current_agent != self.end_agent:
                     logging.debug(f"Current agent: {current_agent.name}")
-                    current_agent.fluid_input = current_input
+                    current_agent.input = current_input
                     # Agent responds using their own process method
-                    output = current_agent.single_thought_process(**kwargs)
+                    output = current_agent.generate(**kwargs)
                     self.memory.add_message("assistant", output)
 
                     # The next agent's input is the previous agent's output
                     current_agent = self.supervisor.choose_next_agent(
                         current_agent, output
                     )
-                    current_input = current_agent.fluid_input
-                    if current_agent.fluid_input == "":
+                    current_input = current_agent.input
+                    if current_agent.input == "":
                         current_input = output
                     # Add the new user input
                     self.memory.add_message("user", current_input)
 
                 # End agent responds using all messages
                 logging.debug(f"Current agent: {current_agent.name}")
-                self.end_agent.fluid_input = current_input
-                self.final_output = self.end_agent.single_thought_process(**kwargs)
+                self.end_agent.input = current_input
+                self.final_output = self.end_agent.generate(**kwargs)
                 self.memory.add_message("assistant", self.final_output)
 
                 # Validate the output
@@ -192,23 +190,23 @@ class ChainOfThoughtWorkflow(Workflow):
 
             while current_agent != self.end_agent:
                 logging.debug(f"Current agent: {current_agent.name}")
-                current_agent.fluid_input = current_input
+                current_agent.input = current_input
                 # Agent responds using their own process method
-                output = current_agent.single_thought_process(**kwargs)
+                output = current_agent.generate(**kwargs)
                 self.memory.add_message("assistant", output)
 
                 # The next agent's input is the previous agent's output
                 current_agent = self.supervisor.choose_next_agent(current_agent, output)
-                current_input = current_agent.fluid_input
-                if current_agent.fluid_input == "":
+                current_input = current_agent.input
+                if current_agent.input == "":
                     current_input = output
                 # Add the new user input
                 self.memory.add_message("user", current_input)
 
             # End agent responds using all messages
             logging.debug(f"Current agent: {current_agent.name}")
-            self.end_agent.fluid_input = current_input
-            final_output = self.end_agent.single_thought_process(**kwargs)
+            self.end_agent.input = current_input
+            final_output = self.end_agent.generate(**kwargs)
             self.memory.add_message("assistant", final_output)
 
             return final_output, self.memory_id
@@ -310,7 +308,6 @@ class AutoSelectWorkflow(Workflow):
                 logging.info(f"Starting iteration {iteration}/{max_iterations}.")
 
                 # Clear memory at each iteration to start fresh
-                self.memory.clear_memory()
                 logging.debug("Memory cleared for new iteration.")
 
                 # For the very first iteration, let the supervisor pick the first agent
@@ -325,7 +322,9 @@ class AutoSelectWorkflow(Workflow):
                         current_agent=None,
                         latest_output="Re-iterating after invalidation",
                     )
-
+                    logging.info(
+                        f"Supervisor chose agent: {decision['next_agent']} with input: {decision['next_input']}"
+                    )
                 next_agent_name = decision["next_agent"]
                 next_input = decision["next_input"]
                 logging.info(
@@ -423,7 +422,8 @@ class AutoSelectWorkflow(Workflow):
 
         while True:
             # Let the current agent process
-            output = current_agent.single_thought_process(**kwargs)
+            current_agent.input = agent_input
+            output = current_agent.generate(**kwargs)
 
             logging.info(f"Agent '{current_agent.name}' output: {output}")
 
@@ -510,8 +510,8 @@ class FluidChainOfThoughtWorkflow(Workflow):
             current_agent = self.agents[0]
             if self.start_agent:
                 agents_quantity += 1
-                if not self.start_agent.fluid_input:
-                    self.start_agent.fluid_input = self.task.prompt
+                if not self.start_agent.input:
+                    self.start_agent.input = self.task.prompt
                 current_agent = self.start_agent
             current_input = self.task.prompt
             self.count = 0
@@ -521,14 +521,14 @@ class FluidChainOfThoughtWorkflow(Workflow):
                 if current_agent != self.start_agent:
                     current_agent = self.agents[self.count]
                 # Agent responds using their own process method
-                output = current_agent.single_thought_process(**kwargs)
+                output = current_agent.generate(**kwargs)
                 # The next agent's input is the previous agent's output
                 self.final_output = output
                 current_agent = self.supervisor.choose_next_agent(current_agent, output)
                 self.count += 1
             if self.end_agent:
                 self.end_agent.memory_id = self.memory_id
-                self.final_output = self.end_agent.single_thought_process(**kwargs)
+                self.final_output = self.end_agent.generate(**kwargs)
             validate_output = self.validator.validate_output(
                 task_description=self.task.prompt, answer=self.final_output
             )

@@ -1,7 +1,7 @@
 import logging
 
 from openvela.agents import Agent, SupervisorAgent
-from openvela.llms import GroqModel
+from openvela.llms import GroqModel, OllamaModel
 from openvela.tasks import Task
 from openvela.workflows import AutoSelectWorkflow
 
@@ -13,10 +13,10 @@ from openvela.workflows import AutoSelectWorkflow
 logging.basicConfig(level=logging.INFO)
 
 # Initialize the GroqModel with your valid API key
-model_instance = GroqModel(
-    api_key=""
-)
-
+# model_instance = GroqModel(
+#     api_key=""
+# )
+model_instance = OllamaModel()
 # ---------------------------------------------------------------------------------
 # 1. Define New Agents
 # ---------------------------------------------------------------------------------
@@ -107,7 +107,6 @@ task = Task(
         "can run locally to see the site in action.\n\n"
         "Output the final code (HTML, CSS, JavaScript, and Python)."
     ),
-    agents=[designer_agent, front_end_developer_agent, back_end_developer_agent],
 )
 
 # ---------------------------------------------------------------------------------

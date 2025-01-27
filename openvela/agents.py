@@ -22,7 +22,7 @@ class Agent:
     model: Model = field(default_factory=GroqModel)
     tools: Optional[List[AIFunctionTool]] = None
     tools_choice: Optional[str] = None
-    memory_id: str = field(default_factory=lambda: str(uuid.uuid4()))
+    memory_id: Optional[str] = None
     options: dict = field(default_factory=dict)
     name: str = field(init=False)
     prompt: str = field(init=False)
@@ -37,33 +37,24 @@ class Agent:
         self.prompt = self.settings.get("prompt", "")
         self.description = self.settings.get("description", "")
         self.memory = WorkflowMemory(memory_id=self.memory_id)  # Set the memory prompt
-        self.input = ""
         self.extra_info = self.settings.get("extra_info", "")
-        self.fluid_input = self.settings.get("input", "")
+        self.input = self.settings.get("input", "")
         self.options = self.settings.get("options", {})
 
         # logging.info(f"{self.name} initialized with prompt: {self.prompt}")
 
-    def generate_thoughts(self, input_data: str) -> List[str]:
+    def set_memory(self, memory: WorkflowMemory):
         """
-        Generates multiple thoughts or ideas based on the input data.
+        Sets the memory ID for the agent's memory.
 
         Args:
-            input_data (str): The input data to base thoughts on.
-
-        Returns:
-            List[str]: A list of generated thoughts.
+            memory_id (str): The ID to set for the memory.
         """
-        prompt = f"{self.prompt}\nGenerate several thoughts or ideas based on the following input for the main task '{self.input}':\n{input_data}"
 
-        messages = self.memory.load()
-        messages.append({"role": "user", "content": prompt})
-        response = self.model.generate_response(messages, format="json")
-        thoughts = response.strip().split("\n")
-        self.memory.add_message("assistant", response)
-        return thoughts
+        self.memory = memory
+        self.memory_id = memory.memory_id
 
-    def single_thought_process(self, **kwargs) -> str:
+    def generate(self, **kwargs) -> str:
         """
         Processes a single thought using the language model.
 
@@ -84,28 +75,15 @@ class Agent:
         single_thought_messages.insert(0, {"role": "system", "content": self.prompt})
 
         if self.extra_info:
-            self.fluid_input += f"\n\n{self.extra_info}"
-        single_thought_messages.append({"role": "user", "content": self.fluid_input})
-        self.memory.add_message("", "user", self.fluid_input)
-        print(f"\n\nAgent: {self.name}\n")
-        print(f"\nUser: {self.fluid_input}\n")
+            self.input += f"\n\n{self.extra_info}"
+        single_thought_messages.append({"role": "user", "content": self.input})
+        self.memory.add_message("", "user", self.input)
 
+        print(single_thought_messages)
         response = self.model.generate_response(single_thought_messages, **extra_args)
-        print(f"Assistant: {response}\n")
+
         self.memory.add_message(self.name, "assistant", response)
         return response
-
-    def respond(self, input_data: str) -> str:
-        """
-        Facilitates the agent's response to input data.
-
-        Args:
-            input_data (str): The input data to respond to.
-
-        Returns:
-            str: The agent's response.
-        """
-        return self.process(input_data)
 
     def __eq__(self, other):
         """
@@ -143,6 +121,9 @@ class SupervisorAgent(Agent):
     end_agent: Optional[Agent] = None
     start_agent: Optional[Agent] = None
     agents: List[Agent] = field(default_factory=list)
+
+    def generate(self, **kwargs):
+        return super().generate(**kwargs)
 
     def choose_next_agent(self, current_agent: Agent, latest_output: str) -> dict:
         """
@@ -189,21 +170,21 @@ class SupervisorAgent(Agent):
                 )
 
                 # 2) Load conversation from memory
+
                 messages = self.memory.load_messages_with_agent_names()
+
                 # Convert messages so that any assistant role is replaced with the agent_name (if available)
-                for message in messages:
-                    if (message["role"] == "assistant") and ("agent_name" in message):
-                        message["role"] = message["agent_name"]
 
                 # 3) Build a conversation string or keep it in a list as needed
                 conversation = "\n".join(
-                    [f"{msg['role']}: {msg['content']}" for msg in messages]
+                    [f"{msg['agent_name']}: {msg['content']}" for msg in messages]
                 )
 
                 # 4) System prompt for the LLM
                 system_instructions = f"""
 You are the Supervisor Agent. Your role is to determine the next action for fulfilling the original TASK. 
 Consider the following:
+
 - AGENT LIST:
 {agent_list}
 
@@ -218,16 +199,21 @@ If the LATEST AGENT OUTPUT has completely satisfied the TASK requirements, respo
   "next_agent": "FINISH",
   "next_input": "<create the most detailed answer for the TASK to serve as final output based on the conversation>"
 }}
+Replace the next input with the best possible answer based on the conversation, you need to pass key informations on the input.
 
 Otherwise, select the best-suited agent from the AGENT LIST and specify the new input or instructions for that agent.
 Then respond in JSON with:
 {{
   "next_agent": "<AgentName>",
   "thinking": "<reasoning or explanation for the choice>",
-  "next_input": "<as a user you can improve the accuracy of the answers giving structions instructions or prompt for the next agent to recieve a better answer from the agent>"
+  "next_input": "<Next input or instructions for the chosen agent>"
 }}
 
-Replace <AgentName> with the actual name of the chosen agent, and 
+Replace <AgentName> with the actual name of the chosen agent
+Replace <Next input or instructions fort the chosen agent> with the content that the chosen agent should process next, as a user you can improve the accuracy of the answers giving structions instructions or prompt for the next agent to recieve a better answer from the agent
+Additional Instructions:
+
+{self.prompt}
                 """
 
                 # 5) Build messages for the LLM
@@ -241,8 +227,11 @@ Replace <AgentName> with the actual name of the chosen agent, and
 
                 # 7) Parse JSON
                 parsed_response = json.loads(response)
-                print(f"\nSelector response: {parsed_response}\n\n")
+
                 # 8) Return the structure that the workflow expects
+                self.memory.add_message(
+                    "SupervisorAgentAsUser", "user", parsed_response.get("next_input")
+                )
                 return {
                     "next_agent": parsed_response.get("next_agent", "FINISH"),
                     "next_input": parsed_response.get("next_input", latest_output),
@@ -283,6 +272,9 @@ class FluidValidator(Agent):
     """
     Specialized agent that validates the task description before generating agents.
     """
+
+    def generate(self, **kwargs):
+        return super().generate(**kwargs)
 
     def validate_output(self, task_description: str, answer: str) -> dict:
         class ValidatorOutput(TypedDict):
@@ -332,6 +324,9 @@ class FluidAgent(Agent):
     Specialized agent that dynamically generates and manages a set of agents based on a task description.
     Facilitates the creation of complex workflows by defining a sequence of agents.
     """
+
+    def generate(self, **kwargs):
+        return super().generate(**kwargs)
 
     def generate_agents_from_task(self, task_description: str, **kwargs) -> List[Dict]:
         """
@@ -537,7 +532,7 @@ class SQLAgent(Agent):
     # A textual description of the database structure/schema for context
     database_structure: str = ""
 
-    def single_thought_process(self, **kwargs) -> str:
+    def generate(self, **kwargs) -> str:
         """
         Uses the language model to generate or refine a SQL query from the user's request,
         then executes the query in a read-only manner and returns the results.
@@ -549,7 +544,12 @@ class SQLAgent(Agent):
             str: A string containing the query results or an error message.
         """
         # 1. Load any existing messages from memory
-        messages = self.memory.load()
+        query_examples = ""
+        for ex in self.example_queries:
+            query_examples += (
+                f"- Question: {ex.get('question')}\n  Query: {ex.get('sql_query')}\n"
+            )
+
         # 2. Create a system instruction to guide the LLM about how to form the query
         system_prompt = (
             f"You are a read-only SQL Agent using the '{self.sql_dialect}' dialect. "
@@ -560,19 +560,16 @@ class SQLAgent(Agent):
             "When returning the SQL query, you MUST enclose it in valid JSON with the key 'sql_query'. "
             "Example:\n\n"
             '{"sql_query": "SELECT * FROM table_name WHERE condition;"}'
+            "\n\nHere are some example queries that might help:\n\n"
+            f"{query_examples}\n\n"
+            "\nPlease generate a valid SELECT query (or other non-mutating SQL) in JSON format."
+            "Additional instructions:\n"
+            f"{self.prompt}"
         )
 
         # 3. Build the user content from the current fluid input
-        user_content = (
-            f"User request:\n{self.fluid_input}\n\n"
-            "Here are some example queries that might help:\n"
-        )
-        for ex in self.example_queries:
-            user_content += (
-                f"- Question: {ex.get('question')}\n  Query: {ex.get('sql_query')}\n"
-            )
-
-        user_content += "\nPlease generate a valid SELECT query (or other non-mutating SQL) in JSON format."
+        user_content = f"\n{self.input}\n\n"
+        self.memory.add_message("SupervisorAsUser", "user", user_content)
 
         # 4. Prepare the message list to send to the LLM
         query_messages = [
@@ -581,12 +578,8 @@ class SQLAgent(Agent):
         ]
 
         # 5. Optionally limit the conversation history if requested
-        max_prev = kwargs.get("max_previous_messages")
-        if max_prev is not None:
-            messages = messages[-int(max_prev) :]
 
         # 6. Insert the conversation messages before the new system/user instructions
-        query_messages[1:1] = messages
 
         # 7. Generate the LLM response that should contain a JSON with "sql_query"
         llm_response = self.model.generate_response(query_messages, format="json")
@@ -622,11 +615,27 @@ class SQLAgent(Agent):
             header = result.keys() if result.returns_rows else []
             rows_str = "\n".join([str(dict(zip(header, row))) for row in rows])
 
-            self.memory.add_message("assistant", f"Executed query:\n{sql_query}")
+            formatter_prompt = f"""
+            Your Function is:
+            - Format the Response generated by a SQLAgent to a good and cohesive format that allows users to understand well.
+            - You will receive the Response generated by the SQLAgent and you need to format it in a way that is easy to read and understand.  
+            - You will format based on the user's input and the SQL query generated by the SQLAgent.
+            **Do not modify the response data, just format it.**
+            
+            USER'S INPUT:   
+            {user_content}
+            
+            """
+            list_messages = [
+                {"role": "system", "content": formatter_prompt},
+                {"role": "user", "content": rows_str},
+            ]
+            formatter_response = self.model.generate_response(list_messages)
+            self.memory.add_message(self.name, "assistant", formatter_response)
             # 11. Return the query results
             if not rows:
                 return f"No rows returned for query:\n{sql_query}"
-            return f"Query Results:\n{rows_str}"
+            return formatter_response
 
         except Exception as e:
             logging.error(f"Error executing SQL query: {e}")

@@ -200,6 +200,7 @@ class WorkflowMemory:
             content (str): The content of the message.
         """
         message = {"agent_name": agent_name, "role": role, "content": content}
+        print(self.file_path)
         self.messages.append(message)
         self.save()
 
@@ -240,6 +241,7 @@ class WorkflowMemory:
         Returns:
             List[Dict[str, str]]: The loaded messages.
         """
+        print()
         if os.path.exists(self.file_path):
             data = self.memory_format.load(self.file_path)
             message_list = data.get("messages", [])
