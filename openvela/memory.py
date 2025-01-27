@@ -190,15 +190,17 @@ class WorkflowMemory:
         os.makedirs(os.path.dirname(self.file_path), exist_ok=True)
         self.load()
 
-    def add_message(self, role: str, content: str):
+    def add_message(self, agent_name: str, role: str, content: str):
         """
         Adds a new message to the workflow memory and saves the updated memory.
 
         Args:
+            agent_name (str): The name of the agent sending the message.
             role (str): The role of the message sender.
             content (str): The content of the message.
         """
-        message = {"role": role, "content": content}
+        message = {"agent_name": agent_name, "role": role, "content": content}
+        print(self.file_path)
         self.messages.append(message)
         self.save()
 
@@ -219,7 +221,38 @@ class WorkflowMemory:
         """
         if os.path.exists(self.file_path):
             data = self.memory_format.load(self.file_path)
-            self.messages = data.get("messages", [])
+            message_list = data.get("messages", [])
+            self.messages = [
+                {
+                    "role": message.get("role"),
+                    "content": message.get("content"),
+                }
+                for message in message_list
+            ]
+        else:
+            self.messages = []
+        return self.messages
+
+    def load_messages_with_agent_names(self):
+        """
+        Loads existing messages from the workflow memory file.
+        Initializes messages to an empty list if the file does not exist.
+
+        Returns:
+            List[Dict[str, str]]: The loaded messages.
+        """
+        print()
+        if os.path.exists(self.file_path):
+            data = self.memory_format.load(self.file_path)
+            message_list = data.get("messages", [])
+            self.messages = [
+                {
+                    "agent_name": message.get("agent_name", ""),
+                    "role": message.get("role"),
+                    "content": message.get("content"),
+                }
+                for message in message_list
+            ]
         else:
             self.messages = []
         return self.messages

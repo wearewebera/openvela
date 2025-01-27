@@ -233,7 +233,7 @@ class GroqModel(Model):
 
     client: Groq = field(init=False)
     api_key: str = ""
-    model: str = "llama-3.1-70b-versatile"
+    model: str = "llama-3.3-70b-versatile"
 
     def __post_init__(self):
         """
@@ -268,7 +268,6 @@ class GroqModel(Model):
         selected_tools = (
             self._functions_by_choices(tools, tool_choice) if tools else None
         )
-
         # Filter kwargs for the chat completion create function
         filtered_kwargs = self._filter_kwargs_for_function(
             self.client.chat.completions.create, kwargs
