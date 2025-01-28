@@ -1,10 +1,13 @@
 import logging
+
 import sqlite3
+
 
 from openvela.agents import Agent, SQLAgent, SupervisorAgent
 from openvela.llms import GroqModel, OllamaModel
 from openvela.tasks import Task
 from openvela.workflows import AutoSelectWorkflow
+
 
 # ------------------------------------------------------------------
 # 1. Configure Logging
@@ -262,6 +265,7 @@ users_addresses_agent = SQLAgent(
         "name": "UsersAddressesAgent",
         "prompt": "Generate a read-only SQL query for the 'users' and 'addresses' tables.",
         "description": "Specialized Agent for users & addresses queries (read-only).",
+
     },
     model=model_instance,
     sql_dialect="sqlite",
@@ -269,12 +273,14 @@ users_addresses_agent = SQLAgent(
     database_structure=schema_summary,
 )
 
+
 # (B) Agent for categories + products
 catalog_agent = SQLAgent(
     settings={
         "name": "CatalogAgent",
         "prompt": "Generate a read-only SQL query for the 'categories' and 'products' tables.",
         "description": "Specialized Agent for categories & products queries (read-only).",
+
     },
     model=model_instance,
     sql_dialect="sqlite",
@@ -288,6 +294,7 @@ orders_agent = SQLAgent(
         "name": "OrdersAgent",
         "prompt": "Generate a read-only SQL query for 'orders' and 'order_items' tables.",
         "description": "Specialized Agent for orders & order_items queries (read-only).",
+
     },
     model=model_instance,
     sql_dialect="sqlite",
@@ -295,18 +302,21 @@ orders_agent = SQLAgent(
     database_structure=schema_summary,
 )
 
+
 # (D) Agent for product_reviews + payments
 reviews_payments_agent = SQLAgent(
     settings={
         "name": "ReviewsPaymentsAgent",
         "prompt": "Generate a read-only SQL query for 'product_reviews' and 'payments' tables.",
         "description": "Specialized Agent for product_reviews & payments queries (read-only).",
+
     },
     model=model_instance,
     sql_dialect="sqlite",
     sqlalchemy_engine_url="sqlite:///example.db",
     database_structure=schema_summary,
 )
+
 
 # ------------------------------------------------------------------
 # 6. SupervisorAgent to coordinate the Agents
@@ -358,14 +368,17 @@ workflow = AutoSelectWorkflow(
         reviews_payments_agent,
         formatter_agent,  # We can also pass the FormatterAgent if we want it considered
     ],
+
     supervisor=supervisor,
     validate_output=False,
     max_attempts=3,
 )
+
 
 final_output = workflow.run()
 
 # ------------------------------------------------------------------
 # 9. Print the Final Output
 # ------------------------------------------------------------------
+
 print("Final Output:\n", final_output)

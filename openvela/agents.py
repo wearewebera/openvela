@@ -135,6 +135,7 @@ class SupervisorAgent(Agent):
                 "next_input": "<content for the next agent or final output>"
             }
 
+
         The workflow can interpret "FINISH" in "next_agent" to conclude the process.
         """
         # -----------------------------
@@ -258,6 +259,7 @@ Additional Instructions:
                 logging.error(f"Error in supervisor agent (selector mode): {e}")
                 # If there's any error, gracefully end
                 return {"next_agent": "FINISH", "next_input": latest_output}
+
 
         else:
             logging.warning(f"Unknown supervisor mode: {self.agent_type}. Finishing.")
@@ -560,6 +562,7 @@ class SQLAgent(Agent):
         Returns:
             str: A string containing the query results or an error message.
         """
+
         max_attempts = 3
         attempt = 0
 
@@ -681,3 +684,4 @@ class SQLAgent(Agent):
                         f"Error executing SQL query after multiple attempts:\n{str(e)}"
                     )
                 continue
+
