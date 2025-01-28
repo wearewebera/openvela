@@ -370,13 +370,15 @@ class AutoSelectWorkflow(Workflow):
         # If no validation is requested, do simpler logic
         # ------------------------------------------------
         else:
+
             logging.info("Validation disabled. Running single agent chain flow.")
             decision = self.supervisor.choose_next_agent(None, "Workflow started.")
             next_agent_name = decision["next_agent"]
             next_input = decision["next_input"]
-            logging.info(
-                f"Supervisor chose agent: {next_agent_name} with input: {next_input}"
-            )
+            print(f"Supervisor chose agent: {next_agent_name} with input: {next_input}")
+            # logging.info(
+            #     f"Supervisor chose agent: {next_agent_name} with input: {next_input}"
+            # )
 
             # If it says FINISH right away, we are done
             if next_agent_name == "FINISH":
@@ -387,7 +389,7 @@ class AutoSelectWorkflow(Workflow):
 
             # Otherwise, proceed with agent chain
             output_dict = self._run_agent_chain(next_agent_name, next_input, **kwargs)
-            logging.info(f"Agent chain returned: {output_dict}")
+            # logging.info(f"Agent chain returned: {output_dict}")
 
             if output_dict["next_agent"] == "FINISH":
                 return output_dict["output"]
@@ -405,10 +407,11 @@ class AutoSelectWorkflow(Workflow):
              "output": <agent's final output>
            }
         """
-        logging.debug(
+        print(
             f"Starting agent chain with {start_agent_name}, initial input: {agent_input}"
         )
         current_agent = [a for a in self.agents if a.name == start_agent_name]
+        print(current_agent)
         if not current_agent:
             logging.warning(
                 f"No agent found named {start_agent_name}. Finishing immediately."
@@ -417,20 +420,18 @@ class AutoSelectWorkflow(Workflow):
         current_agent = current_agent[0]
 
         # Clear memory for the chain run
-
         logging.debug("Memory cleared at the start of agent chain.")
 
         while True:
             # Let the current agent process
+
             current_agent.input = agent_input
             output = current_agent.generate(**kwargs)
-
-            logging.info(f"Agent '{current_agent.name}' output: {output}")
 
             # Check if the agent decided to FINISH
             if output == "FINISH":
                 logging.info(f"Agent '{current_agent.name}' indicated FINISH.")
-                return {"next_agent": "FINISH", "output": output["output"]}
+                return {"next_agent": "FINISH", "output": agent_input}
 
             # Otherwise, let the supervisor pick the next agent
             decision = self.supervisor.choose_next_agent(current_agent, output)
@@ -450,6 +451,9 @@ class AutoSelectWorkflow(Workflow):
                 logging.warning(f"No agent found named {next_agent_name}. Finishing.")
                 return {"next_agent": "FINISH", "output": next_input}
             current_agent = next_agent[0]
+
+            # Update agent_input for the next iteration
+            agent_input = next_input
 
             # Update memory
 
@@ -515,7 +519,7 @@ class FluidChainOfThoughtWorkflow(Workflow):
                 current_agent = self.start_agent
             current_input = self.task.prompt
             self.count = 0
-            print(self.agents)
+
             current_agent.memory_id = self.memory_id
             while self.count != agents_quantity:
                 if current_agent != self.start_agent:
