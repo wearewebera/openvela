@@ -135,6 +135,7 @@ class SupervisorAgent(Agent):
                 "next_input": "<content for the next agent or final output>"
             }
 
+
         The workflow can interpret "FINISH" in "next_agent" to conclude the process.
         """
         # -----------------------------
@@ -196,21 +197,38 @@ Consider the following:
 
 If the LATEST AGENT OUTPUT has completely satisfied the TASK requirements, respond in JSON with:
 {{
-  "next_agent": "FINISH",
+  "next_agent": "FINISH" String Type only,
   "next_input": "<create the most detailed answer for the TASK to serve as final output based on the conversation>"
 }}
 Replace the next input with the best possible answer based on the conversation, you need to pass key informations on the input.
 
+
 Otherwise, select the best-suited agent from the AGENT LIST and specify the new input or instructions for that agent.
 Then respond in JSON with:
 {{
-  "next_agent": "<AgentName>",
-  "thinking": "<reasoning or explanation for the choice>",
-  "next_input": "<Next input or instructions for the chosen agent>"
+  "next_agent": "<AgentName>" String Type only,
+  "thinking": "<reasoning or explanation for the choice>" String Type Only,
+  "next_input": "<Next input or instructions for the chosen agent>" String Type Only
 }}
 
 Replace <AgentName> with the actual name of the chosen agent
-Replace <Next input or instructions fort the chosen agent> with the content that the chosen agent should process next, as a user you can improve the accuracy of the answers giving structions instructions or prompt for the next agent to recieve a better answer from the agent
+Replace <Next input or instructions fort the chosen agent> with:
+- The next question or directive to guide the agent
+- Any additional information or context required for the agent to proceed
+- All the information that the agent needs to process the information correctly
+- If the agent needs to provide a specific type of response, specify it clearly
+- If the agent needs to follow a specific format or structure, provide detailed instructions
+- If the agent needs to consider certain aspects or criteria, outline them clearly
+- If the agent needs to focus on particular elements or details, highlight them explicitly
+- If the agent needs to address specific challenges or issues, describe them in detail
+- If the agent needs to explore alternative solutions or approaches, suggest them explicitly
+- If the agent needs to make a research or analysis, provide clear guidelines and information
+
+
+
+
+Remember to guide the conversation towards the completion of the TASK by selecting the most appropriate agent and providing relevant instructions.
+
 Additional Instructions:
 
 {self.prompt}
@@ -241,6 +259,7 @@ Additional Instructions:
                 logging.error(f"Error in supervisor agent (selector mode): {e}")
                 # If there's any error, gracefully end
                 return {"next_agent": "FINISH", "next_input": latest_output}
+
 
         else:
             logging.warning(f"Unknown supervisor mode: {self.agent_type}. Finishing.")
@@ -543,100 +562,126 @@ class SQLAgent(Agent):
         Returns:
             str: A string containing the query results or an error message.
         """
-        # 1. Load any existing messages from memory
-        query_examples = ""
-        for ex in self.example_queries:
-            query_examples += (
-                f"- Question: {ex.get('question')}\n  Query: {ex.get('sql_query')}\n"
+
+        max_attempts = 3
+        attempt = 0
+
+        while attempt < max_attempts:
+            attempt += 1
+            # 1. Load any existing messages from memory
+            query_examples = ""
+            for ex in self.example_queries:
+                query_examples += f"- Question: {ex.get('question')}\n  Query: {ex.get('sql_query')}\n"
+
+            # 2. Create a system instruction to guide the LLM about how to form the query
+            system_prompt = (
+                f"You are a read-only SQL Agent using the '{self.sql_dialect}' dialect. "
+                "You have access to the following database structure:\n"
+                f"{self.database_structure}\n\n"
+                "You are ONLY allowed to generate SELECT queries or other non-mutating statements. "
+                "You must not attempt INSERT, UPDATE, DELETE, DROP, or ALTER. "
+                "When returning the SQL query, you MUST enclose it in valid JSON with the key 'sql_query'. "
+                "Example:\n\n"
+                '{"sql_query": "SELECT * FROM table_name WHERE condition;"}'
+                "\n\nHere are some example queries that might help:\n\n"
+                f"{query_examples}\n\n"
+                "\nPlease generate a valid SELECT query (or other non-mutating SQL) in JSON format."
+                "Additional instructions:\n"
+                f"{self.prompt}"
             )
 
-        # 2. Create a system instruction to guide the LLM about how to form the query
-        system_prompt = (
-            f"You are a read-only SQL Agent using the '{self.sql_dialect}' dialect. "
-            "You have access to the following database structure:\n"
-            f"{self.database_structure}\n\n"
-            "You are ONLY allowed to generate SELECT queries or other non-mutating statements. "
-            "You must not attempt INSERT, UPDATE, DELETE, DROP, or ALTER. "
-            "When returning the SQL query, you MUST enclose it in valid JSON with the key 'sql_query'. "
-            "Example:\n\n"
-            '{"sql_query": "SELECT * FROM table_name WHERE condition;"}'
-            "\n\nHere are some example queries that might help:\n\n"
-            f"{query_examples}\n\n"
-            "\nPlease generate a valid SELECT query (or other non-mutating SQL) in JSON format."
-            "Additional instructions:\n"
-            f"{self.prompt}"
-        )
+            # 3. Build the user content from the current fluid input
+            user_content = f"\n{self.input}\n\n"
+            print(f"User Content: {user_content}")
 
-        # 3. Build the user content from the current fluid input
-        user_content = f"\n{self.input}\n\n"
-        self.memory.add_message("SupervisorAsUser", "user", user_content)
-
-        # 4. Prepare the message list to send to the LLM
-        query_messages = [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_content},
-        ]
-
-        # 5. Optionally limit the conversation history if requested
-
-        # 6. Insert the conversation messages before the new system/user instructions
-
-        # 7. Generate the LLM response that should contain a JSON with "sql_query"
-        llm_response = self.model.generate_response(query_messages, format="json")
-
-        # 8. Attempt to parse the LLM response as JSON and extract the query
-        try:
-            response_json = json.loads(llm_response)
-            sql_query = response_json.get("sql_query", "").strip()
-        except json.JSONDecodeError:
-            logging.error("Failed to parse LLM response as valid JSON.")
-            return "Error: The agent could not produce valid JSON for the SQL query."
-
-        # 9. Basic safety check to ensure it's a read-only query (SELECT, SHOW, etc.)
-        upper_query = sql_query.upper()
-        if not upper_query.startswith("SELECT") and not upper_query.startswith("SHOW"):
-            return (
-                "Error: The generated query is not read-only. "
-                "SQLAgent is restricted to read-only statements."
-            )
-
-        # 10. Execute the query using SQLAlchemy
-        try:
-            engine = create_engine(self.sqlalchemy_engine_url)
-            with engine.connect() as connection:
-                # Optional: enforce read-only at the database level if supported
-                # For example, PostgreSQL might support: connection.execute("SET TRANSACTION READ ONLY")
-
-                result = connection.execute(text(sql_query))
-                rows = result.fetchall()
-
-            # Format the results as a string
-            # (For bigger sets, you might want to limit or page the results.)
-            header = result.keys() if result.returns_rows else []
-            rows_str = "\n".join([str(dict(zip(header, row))) for row in rows])
-
-            formatter_prompt = f"""
-            Your Function is:
-            - Format the Response generated by a SQLAgent to a good and cohesive format that allows users to understand well.
-            - You will receive the Response generated by the SQLAgent and you need to format it in a way that is easy to read and understand.  
-            - You will format based on the user's input and the SQL query generated by the SQLAgent.
-            **Do not modify the response data, just format it.**
-            
-            USER'S INPUT:   
-            {user_content}
-            
-            """
-            list_messages = [
-                {"role": "system", "content": formatter_prompt},
-                {"role": "user", "content": rows_str},
+            # 4. Prepare the message list to send to the LLM
+            query_messages = [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_content},
             ]
-            formatter_response = self.model.generate_response(list_messages)
-            self.memory.add_message(self.name, "assistant", formatter_response)
-            # 11. Return the query results
-            if not rows:
-                return f"No rows returned for query:\n{sql_query}"
-            return formatter_response
 
-        except Exception as e:
-            logging.error(f"Error executing SQL query: {e}")
-            return f"Error executing SQL query:\n{str(e)}"
+            # 5. Optionally limit the conversation history if requested
+
+            # 6. Insert the conversation messages before the new system/user instructions
+
+            # 7. Generate the LLM response that should contain a JSON with "sql_query"
+            llm_response = self.model.generate_response(query_messages, format="json")
+
+            # 8. Attempt to parse the LLM response as JSON and extract the query
+            try:
+                response_json = json.loads(llm_response)
+                sql_query = response_json.get("sql_query", "").strip()
+            except json.JSONDecodeError:
+                logging.error("Failed to parse LLM response as valid JSON.")
+                if attempt >= max_attempts:
+                    return "Error: The agent could not produce valid JSON for the SQL query after multiple attempts."
+                continue
+
+            # 9. Basic safety check to ensure it's a read-only query (SELECT, SHOW, etc.)
+            upper_query = sql_query.upper()
+            if not upper_query.startswith("SELECT") and not upper_query.startswith(
+                "SHOW"
+            ):
+                if attempt >= max_attempts:
+                    return (
+                        "Error: The generated query is not read-only. "
+                        "SQLAgent is restricted to read-only statements."
+                    )
+                continue
+
+            # 10. Execute the query using SQLAlchemy
+            try:
+                engine = create_engine(self.sqlalchemy_engine_url)
+                with engine.connect() as connection:
+                    # Optional: enforce read-only at the database level if supported
+                    # For example, PostgreSQL might support: connection.execute("SET TRANSACTION READ ONLY")
+
+                    result = connection.execute(text(sql_query))
+                    rows = result.fetchall()
+
+                # Format the results as a string
+                # (For bigger sets, you might want to limit or page the results.)
+                header = result.keys() if result.returns_rows else []
+                rows_str = "\n".join([str(dict(zip(header, row))) for row in rows])
+
+                formatter_prompt = f"""
+                Your Function is:
+                - Format the Response generated by a SQLAgent to a good and cohesive format that allows users to understand well.
+                - You will receive the Response generated by the SQLAgent and you need to format it in a way that is easy to read and understand.  
+                - You will format based on the user's input and the SQL query generated by the SQLAgent.
+                - Your response should be in JSON format with the key 'formatted_response':
+                {{
+                  "formatted_response": "Your formatted response here."
+                }}
+                **Do not modify the response data, just format it.**
+                
+                USER'S INPUT:   
+                {user_content}
+                
+                """
+                list_messages = [
+                    {"role": "system", "content": formatter_prompt},
+                    {"role": "user", "content": rows_str},
+                ]
+                formatter_response = self.model.generate_response(
+                    list_messages, **kwargs, format="json"
+                )
+                formatter_response_json = json.loads(formatter_response)
+                self.memory.add_message(
+                    self.name,
+                    "assistant",
+                    formatter_response_json.get("formatted_response", rows_str),
+                )
+                # 11. Return the query results
+                if not rows:
+                    return f"No rows returned for query:\n{sql_query}"
+                return formatter_response_json.get("formatted_response", rows_str)
+
+            except Exception as e:
+                logging.error(f"Error executing SQL query: {e}")
+                if attempt >= max_attempts:
+                    return (
+                        f"Error executing SQL query after multiple attempts:\n{str(e)}"
+                    )
+                continue
+
