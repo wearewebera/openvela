@@ -18,14 +18,11 @@ jobs:
           python-version: "3.x"
       - name: Install pypa/build
         run: >-
-          python3 -m
-          pip install
-          build
-          --user
+          python3 -m pip install build --user
       - name: Build a binary wheel and a source tarball
         run: python3 -m build
       - name: Store the distribution packages
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: python-package-distributions
           path: dist/
@@ -60,11 +57,11 @@ jobs:
   #   needs:
   #     - publish-to-pypi
   #   runs-on: ubuntu-latest
-
+  #
   #   permissions:
   #     contents: write # IMPORTANT: mandatory for making GitHub Releases
   #     id-token: write # IMPORTANT: mandatory for sigstore
-
+  #
   #   steps:
   #     - name: Download all the dists
   #       uses: actions/download-artifact@v3
@@ -81,8 +78,7 @@ jobs:
   #       env:
   #         GITHUB_TOKEN: ${{ github.token }}
   #       run: >-
-  #         gh release create
-  #         '${{ github.ref_name }}'
+  #         gh release create '${{ github.ref_name }}'
   #         --repo '${{ github.repository }}'
   #         --notes ""
   #     - name: Upload artifact signatures to GitHub Release
@@ -92,6 +88,5 @@ jobs:
   #       # `dist/` contains the built packages, and the
   #       # sigstore-produced signatures and certificates.
   #       run: >-
-  #         gh release upload
-  #         '${{ github.ref_name }}' dist/**
+  #         gh release upload '${{ github.ref_name }}' dist/**
   #         --repo '${{ github.repository }}'
