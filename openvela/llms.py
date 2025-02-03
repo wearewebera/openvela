@@ -153,6 +153,7 @@ class OpenAIModel(Model):
     """
 
     api_key: str
+    base_url: Optional[str] = None
     model: str = "gpt-4o-mini"
     openai: OpenAI = field(init=False)
     transcription_model: str = "whisper-1"
@@ -161,7 +162,9 @@ class OpenAIModel(Model):
         """
         Initializes the OpenAI client with the provided API key.
         """
-        self.openai = OpenAI(self.api_key)
+        self.openai = OpenAI(api_key=self.api_key)
+        if self.base_url:
+            self.openai.base_url = self.base_url
 
     def generate_response(
         self,
@@ -187,7 +190,7 @@ class OpenAIModel(Model):
                     converted_messages.append(UserMessage(content=audio_transcription))
                     # Filter kwargs for the chat completion create function
                     filtered_kwargs = self._filter_kwargs_for_function(
-                        self.openai.chat.completions.create, kwargs
+                        self.openai.chat.completions.create, **kwargs
                     )
                     response = self.openai.chat.completions.create(
                         model=self.model,
@@ -223,6 +226,7 @@ class OpenAIModel(Model):
         )
         response_mapping: Mapping[str, Any] = next(iter([response]))
         return response_mapping["text"]
+
 
 
 @dataclass
