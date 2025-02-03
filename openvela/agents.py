@@ -550,6 +550,7 @@ class SQLAgent(Agent):
     sqlalchemy_engine_url: str = ""
     # A textual description of the database structure/schema for context
     database_structure: str = ""
+    formatter_prompt: str = ""
 
     def generate(self, **kwargs) -> str:
         """
@@ -563,17 +564,26 @@ class SQLAgent(Agent):
             str: A string containing the query results or an error message.
         """
 
+
         max_attempts = 3
         attempt = 0
+        last_error = None  # Will store the error from the SQL execution if it occurs
 
         while attempt < max_attempts:
             attempt += 1
-            # 1. Load any existing messages from memory
+
+            # 1. Load any existing messages from memory and example queries
             query_examples = ""
             for ex in self.example_queries:
                 query_examples += f"- Question: {ex.get('question')}\n  Query: {ex.get('sql_query')}\n"
 
-            # 2. Create a system instruction to guide the LLM about how to form the query
+            # 2. Optionally include error details from the previous attempt
+            error_info = ""
+            if last_error:
+                error_info = f"\nPrevious attempt error: {last_error}\n"
+
+            # 3. Create a system instruction to guide the LLM about how to form the query,
+            # including the error (if any) from the last execution.
             system_prompt = (
                 f"You are a read-only SQL Agent using the '{self.sql_dialect}' dialect. "
                 "You have access to the following database structure:\n"
@@ -585,43 +595,49 @@ class SQLAgent(Agent):
                 '{"sql_query": "SELECT * FROM table_name WHERE condition;"}'
                 "\n\nHere are some example queries that might help:\n\n"
                 f"{query_examples}\n\n"
+                f"{error_info}"
                 "\nPlease generate a valid SELECT query (or other non-mutating SQL) in JSON format."
-                "Additional instructions:\n"
+                " Additional instructions:\n"
                 f"{self.prompt}"
             )
 
-            # 3. Build the user content from the current fluid input
+            # 4. Build the user content from the current fluid input
             user_content = f"\n{self.input}\n\n"
             print(f"User Content: {user_content}")
 
-            # 4. Prepare the message list to send to the LLM
+            # 5. Prepare the message list to send to the LLM
             query_messages = [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_content},
             ]
 
-            # 5. Optionally limit the conversation history if requested
-
-            # 6. Insert the conversation messages before the new system/user instructions
-
-            # 7. Generate the LLM response that should contain a JSON with "sql_query"
+            # 6. Generate the LLM response that should contain a JSON with "sql_query"
             llm_response = self.model.generate_response(query_messages, format="json")
 
-            # 8. Attempt to parse the LLM response as JSON and extract the query
+            # 7. Attempt to parse the LLM response as JSON and extract the query
+
             try:
                 response_json = json.loads(llm_response)
                 sql_query = response_json.get("sql_query", "").strip()
             except json.JSONDecodeError:
                 logging.error("Failed to parse LLM response as valid JSON.")
+
+                last_error = "LLM returned invalid JSON."
+
                 if attempt >= max_attempts:
                     return "Error: The agent could not produce valid JSON for the SQL query after multiple attempts."
                 continue
 
-            # 9. Basic safety check to ensure it's a read-only query (SELECT, SHOW, etc.)
+
+            # 8. Basic safety check to ensure it's a read-only query (SELECT, SHOW, etc.)
+
             upper_query = sql_query.upper()
             if not upper_query.startswith("SELECT") and not upper_query.startswith(
                 "SHOW"
             ):
+
+                last_error = "Generated query is not read-only."
+
                 if attempt >= max_attempts:
                     return (
                         "Error: The generated query is not read-only. "
@@ -629,35 +645,39 @@ class SQLAgent(Agent):
                     )
                 continue
 
-            # 10. Execute the query using SQLAlchemy
+            # 9. Execute the query using SQLAlchemy
+
             try:
                 engine = create_engine(self.sqlalchemy_engine_url)
                 with engine.connect() as connection:
                     # Optional: enforce read-only at the database level if supported
-                    # For example, PostgreSQL might support: connection.execute("SET TRANSACTION READ ONLY")
 
+                    # e.g., for PostgreSQL: connection.execute("SET TRANSACTION READ ONLY")
                     result = connection.execute(text(sql_query))
                     rows = result.fetchall()
 
-                # Format the results as a string
-                # (For bigger sets, you might want to limit or page the results.)
+                # Format the results as a string.
                 header = result.keys() if result.returns_rows else []
                 rows_str = "\n".join([str(dict(zip(header, row))) for row in rows])
 
+                # 10. Use a formatter prompt to generate a formatted response for the user.
                 formatter_prompt = f"""
                 Your Function is:
                 - Format the Response generated by a SQLAgent to a good and cohesive format that allows users to understand well.
-                - You will receive the Response generated by the SQLAgent and you need to format it in a way that is easy to read and understand.  
+                - You will receive the Response generated by the SQLAgent and you need to format it in a way that is easy to read and understand.
+
                 - You will format based on the user's input and the SQL query generated by the SQLAgent.
                 - Your response should be in JSON format with the key 'formatted_response':
                 {{
                   "formatted_response": "Your formatted response here."
                 }}
                 **Do not modify the response data, just format it.**
-                
-                USER'S INPUT:   
+
+                Additional Instructions:
+                {self.formatter_prompt}
+                USER'S INPUT:
                 {user_content}
-                
+
                 """
                 list_messages = [
                     {"role": "system", "content": formatter_prompt},
@@ -677,11 +697,16 @@ class SQLAgent(Agent):
                     return f"No rows returned for query:\n{sql_query}"
                 return formatter_response_json.get("formatted_response", rows_str)
 
+
             except Exception as e:
+                # 12. Capture the error and update last_error so it gets passed into the next prompt
                 logging.error(f"Error executing SQL query: {e}")
+                last_error = str(e)
+                self.memory.add_message(self.name, "assistant", last_error)
                 if attempt >= max_attempts:
                     return (
                         f"Error executing SQL query after multiple attempts:\n{str(e)}"
                     )
+                # Continue to the next iteration, which will include the error in the prompt.
                 continue
 

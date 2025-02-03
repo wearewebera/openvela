@@ -1,609 +1,801 @@
+
 # OpenVela
 
+OpenVela is an open‐source Python library for designing and executing **agentic workflows**. It leverages modern language models to create dynamic, interactive, and multi‐agent systems that collaboratively solve complex tasks. OpenVela supports multiple workflow paradigms—including Chain of Thought, Tree of Thought, Fluid Chain of Thought, and AutoSelect workflows—as well as a variety of agents, memory management techniques, and integrations with popular language model providers such as OpenAI, Groq, and Ollama.
 
-
-Welcome to **OpenVela**, a versatile and extensible Python framework designed to simplify the creation and management of complex workflows involving language models (LLMs). OpenVela empowers developers and researchers to build intelligent agents that can process, analyze, and generate information in a structured manner using advanced LLMs.
-
-**Introducing the Fluid Chain of Thoughts**, a groundbreaking mechanic created by **Augusto Izepon**, which allows for dynamic and adaptive workflows that evolve based on the task at hand. This innovative approach enhances the flexibility and efficiency of agent interactions within OpenVela.
+> **Note:** When you run `pip install openvela`, you install the OpenVela CLI, which provides the following commands:
+> - `openvela serve` – Run the API server.
+> - `openvela run [parameters]` – Execute a workflow with custom parameters.
+> - `openvela interface` – Launch the interactive workflow interface.
 
 ---
 
 ## Table of Contents
 
-- [Features](#features)
-- [Installation](#installation)
-- [Getting Started](#getting-started)
-  - [Defining Tasks](#defining-tasks)
-  - [Creating Agents](#creating-agents)
-  - [Constructing Workflows](#constructing-workflows)
-- [Workflow Types](#workflow-types)
-  - [Chain of Thought Workflow](#chain-of-thought-workflow)
-  - [Tree of Thought Workflow](#tree-of-thought-workflow)
-  - [Fluid Chain of Thought Workflow](#fluid-chain-of-thought-workflow)
-- [The Fluid Chain of Thoughts Mechanic](#the-fluid-chain-of-thoughts-mechanic)
-- [Using the CLI](#using-the-cli)
-  - [Available Commands](#available-commands)
-  - [Workflow Execution via CLI](#workflow-execution-via-cli)
-  - [Examples](#examples)
-- [Running OpenVela as a Server](#running-openvela-as-a-server)
-  - [Starting the Server](#starting-the-server)
-  - [Making API Requests](#making-api-requests)
-  - [API Request Examples](#api-request-examples)
-- [Making Requests](#making-requests)
-  - [Request Structure](#request-structure)
-  - [Request Examples](#request-examples)
-- [Language Model Providers](#language-model-providers)
-- [Advanced Usage](#advanced-usage)
-- [Contributing](#contributing)
-- [License](#license)
-- [Contact](#contact)
+1. [Introduction](#introduction)
+2. [Features](#features)
+3. [Installation](#installation)
+4. [Quick Start Guide](#quick-start-guide)
+5. [Workflows](#workflows)
+    - [Chain of Thought Workflow](#chain-of-thought-workflow)
+    - [Tree of Thought Workflow](#tree-of-thought-workflow)
+    - [Fluid Chain of Thought Workflow](#fluid-chain-of-thought-workflow)
+    - [AutoSelectWorkflow](#autoselectworkflow)
+6. [SupervisorAgent: Types and Roles](#supervisoragent-types-and-roles)
+7. [Language Model Integrations](#language-model-integrations)
+8. [Agents](#agents)
+    - [Basic Agent](#basic-agent)
+    - [StartAgent & EndAgent](#startagent--endagent)
+    - [SupervisorAgent](#supervisoragent)
+    - [FluidAgent & FluidValidator](#fluidagent--fluidvalidator)
+    - [SQLAgent](#sqlagent)
+9. [Memory Management](#memory-management)
+10. [Command Line Interface (CLI)](#command-line-interface-cli)
+11. [Server API](#server-api)
+12. [Advanced Examples Using All Parameters](#advanced-examples-using-all-parameters)
+13. [Contributing](#contributing)
+14. [License](#license)
+
+---
+
+## Introduction
+
+OpenVela is designed to streamline the creation of multi-agent systems using state-of-the-art language models. Whether you are building a storytelling engine, a data analysis tool, or an interactive chatbot network, OpenVela provides a modular framework that allows you to define tasks, instantiate agents, manage conversation history, and integrate with various language model providers.
 
 ---
 
 ## Features
 
-- **Fluid Chain of Thoughts**: Implement dynamic and adaptive workflows using the innovative mechanic created by Augusto Izepon.
-- **Modular Design**: Easily define tasks, agents, and workflows that can be customized and extended.
-- **Multiple Workflow Types**: Support for Chain of Thought, Tree of Thought, and Fluid Chain of Thought workflows.
-- **Agent Management**: Create agents with specific roles and prompts that can interact within workflows.
-- **Memory Persistence**: Use JSON-based memory storage to keep track of conversations and agent states.
-- **Language Model Integration**: Seamless integration with various LLM providers like OpenAI, Groq, and Ollama.
-- **Interactive CLI and Server Mode**: User-friendly Command Line Interface for setting up and running workflows interactively, and the ability to run OpenVela as a server.
-- **Extensibility**: Designed with beginners and advanced users in mind, allowing for simple use cases and complex customizations.
+- **Agentic Workflows:** Supports sequential (Chain of Thought), branching (Tree of Thought), dynamic (Fluid Chain of Thought), and adaptive (AutoSelectWorkflow) modes.
+- **Multi-Agent Support:** Create, manage, and orchestrate different types of agents (e.g., StartAgent, EndAgent, SupervisorAgent, FluidAgent).  
+  **Agent Type Parameter:** Many agents, particularly the `SupervisorAgent`, accept an `agent_type` parameter (`"simple"` or `"selector"`) to control how the next agent is selected.
+- **Memory Management:** Built-in support for short-term and workflow memory using JSON-based formats.
+- **LLM Integrations:** Integrates with OpenAI, Groq, and Ollama language models.
+- **CLI & Server API:** Run workflows via command line (`openvela run`, `openvela serve`, `openvela interface`) or expose them as RESTful endpoints.
+- **File Processing:** Handle audio and image files for advanced interactions.
 
 ---
 
 ## Installation
 
-OpenVela is compatible with Python 3.7 and above. You can install it using `pip`:
+Install OpenVela via pip:
 
 ```bash
 pip install openvela
 ```
 
-Alternatively, clone the repository for the latest development version:
-
-```bash
-git clone https://github.com/weberaAI/openvela.git
-cd openvela
-pip install -e .
-```
+This installs the OpenVela CLI with the following commands:
+- `openvela serve` – Run the API server.
+- `openvela run [parameters]` – Execute a workflow.
+- `openvela interface` – Launch the interactive workflow interface.
 
 ---
 
-## Getting Started
+## Quick Start Guide
 
-This guide will help you get up and running with OpenVela, whether you're a beginner or an experienced programmer.
+Here’s a minimal example to get you started with a Chain of Thought workflow using OpenVela with the OpenAI provider:
 
-### Defining Tasks
+1. **Prepare Your Agents’ Definitions**
 
-A **Task** represents the main objective you want your agents to accomplish. It includes a prompt and a list of agents involved.
+   Create a JSON file (e.g., `agents.json`) with your agent definitions:
 
-```python
-from openvela.tasks import Task
+   ```json
+   {
+     "agents": [
+       {
+         "name": "StartAgent",
+         "prompt": "You are the StartAgent. Begin by outlining the main objectives of the task.",
+         "input": "What are the primary goals for this task?"
+       },
+       {
+         "name": "MiddleAgent",
+         "prompt": "You are the MiddleAgent. Expand on the ideas presented by the StartAgent.",
+         "input": "Provide further details on the objectives."
+       },
+       {
+         "name": "EndAgent",
+         "prompt": "You are the EndAgent. Conclude by synthesizing the information into a final answer.",
+         "input": "Integrate the insights and deliver the final response."
+       }
+     ]
+   }
+   ```
 
-task = Task(
-    agents=['StartAgent', 'ProcessingAgent', 'EndAgent'],
-    prompt="Analyze the impact of climate change on polar bear populations."
-)
-```
+2. **Run the Interactive Interface**
 
-### Creating Agents
+   Launch the interactive workflow interface:
 
-Agents are the entities that process information within workflows. Each agent has settings like `name`, `prompt`, and can be associated with a language model.
+   ```bash
+   openvela interface
+   ```
 
-```python
-from openvela.agents import Agent, StartAgent, EndAgent
-from openvela.llms import OpenAIModel
+   Follow the prompts to select:
+   - Workflow type (e.g., Chain of Thought)
+   - Provider (e.g., OpenAI)
+   - API Key
+   - Agents JSON file path
+   - Task description
 
-# Initialize the language model
-model_instance = OpenAIModel(api_key='your-openai-api-key')
+3. **View the Output**
 
-# Define agents
-start_agent = StartAgent(
-    settings={
-        "name": "StartAgent",
-        "prompt": "You are the StartAgent. Begin by summarizing the task."
-    },
-    model=model_instance
-)
-
-processing_agent = Agent(
-    settings={
-        "name": "ProcessingAgent",
-        "prompt": "You are the ProcessingAgent. Provide detailed analysis."
-    },
-    model=model_instance
-)
-
-end_agent = EndAgent(
-    settings={
-        "name": "EndAgent",
-        "prompt": "You are the EndAgent. Conclude the findings."
-    },
-    model=model_instance
-)
-```
-
-### Constructing Workflows
-
-Workflows define how agents interact to complete the task. OpenVela supports various workflow types, including the innovative Fluid Chain of Thoughts.
-
-```python
-from openvela.workflows import FluidChainOfThoughtWorkflow
-
-workflow = FluidChainOfThoughtWorkflow(
-    task=task,
-    fluid_agent=fluid_agent,
-    supervisor=supervisor_agent
-)
-```
+   After the workflow completes, the final output and memory ID will be displayed on screen and optionally saved to a file.
 
 ---
 
-## Workflow Types
+## Workflows
 
-OpenVela provides flexibility with different workflow structures.
+OpenVela provides several workflow types to suit different use cases.
 
 ### Chain of Thought Workflow
 
-**Chain of Thought Workflow** is a sequential processing pipeline where agents handle data one after another, each building upon the previous agent's output.
+Agents process data sequentially. The output of one agent becomes the input of the next. This workflow supports an optional output validation loop.
 
-- **Use Case**: Best for linear tasks where each step depends on the outcome of the previous step.
-- **Setup**:
-  ```python
-  from openvela.workflows import ChainOfThoughtWorkflow
-
-  workflow = ChainOfThoughtWorkflow(
-      task=task,
-      agents=[agent1, agent2],
-      supervisor=supervisor_agent,
-      start_agent=start_agent,
-      end_agent=end_agent
-  )
-  ```
-- **Example**:
-  ```python
-  task = Task(
-      agents=['StartAgent', 'AnalysisAgent', 'ConclusionAgent'],
-      prompt="Evaluate the economic impact of renewable energy adoption."
-  )
-  ```
-
-### Tree of Thought Workflow
-
-**Tree of Thought Workflow** allows for parallel processing of multiple thoughts or ideas, which are then evaluated and the best paths are selected.
-
-- **Use Case**: Suitable for brainstorming, creative tasks, or when multiple solutions need to be explored.
-- **Setup**:
-  ```python
-  from openvela.workflows import TreeOfThoughtWorkflow
-
-  workflow = TreeOfThoughtWorkflow(
-      task=task,
-      agents=[agent1, agent2],
-      supervisor=supervisor_agent,
-      start_agent=start_agent,
-      end_agent=end_agent
-  )
-  ```
-- **Example**:
-  ```python
-  task = Task(
-      agents=['StartAgent', 'IdeaGeneratorAgent', 'EvaluatorAgent', 'EndAgent'],
-      prompt="Generate innovative marketing strategies for a new product."
-  )
-  ```
-
-### Fluid Chain of Thought Workflow
-
-**Fluid Chain of Thought Workflow** is an innovative mechanic created by **Augusto Izepon**. It dynamically generates agents based on the task, enabling adaptive processing and flexible workflows that evolve during execution.
-
-- **Use Case**: Ideal for complex or undefined tasks where the workflow structure can benefit from adaptation.
-- **Setup**:
-  ```python
-  from openvela.agents import FluidAgent, SupervisorAgent
-  from openvela.workflows import FluidChainOfThoughtWorkflow
-
-  fluid_agent = FluidAgent(settings={"name": "FluidAgent"}, model=model_instance)
-  supervisor_agent = SupervisorAgent(settings={"name": "SupervisorAgent"}, model=model_instance)
-
-  workflow = FluidChainOfThoughtWorkflow(
-      task=task,
-      fluid_agent=fluid_agent,
-      supervisor=supervisor_agent
-  )
-  ```
-- **Example**:
-  ```python
-  task = Task(
-      agents=[],
-      prompt="Design a comprehensive plan to improve urban transportation efficiency."
-  )
-  ```
-
----
-
-## The Fluid Chain of Thoughts Mechanic
-
-The **Fluid Chain of Thoughts** mechanic is a groundbreaking approach introduced by **Augusto Izepon**. It revolutionizes how workflows are constructed and executed in OpenVela by allowing agents to be dynamically generated and organized based on the complexity and requirements of the task.
-
-### Key Features
-
-- **Dynamic Agent Generation**: Agents are not pre-defined but created on-the-fly according to the task's needs.
-- **Adaptive Workflows**: The workflow can adjust its structure during execution, adding or modifying agents as necessary.
-- **Scalability**: Suitable for tasks of varying complexity, from simple queries to intricate problem-solving scenarios.
-- **Enhanced Collaboration**: Agents can learn from previous interactions, leading to progressively improved responses.
-
-### How It Works
-
-The Fluid Agent analyzes the task description and generates a set of agents with specific roles and prompts. These agents then process the task in a sequence determined by the supervisor agent, ensuring that each aspect of the task is thoroughly addressed.
-
-### Benefits
-
-- **Flexibility**: Accommodates changes in task requirements without needing to redesign the workflow.
-- **Efficiency**: Optimizes agent interactions to focus on relevant parts of the task, reducing redundancy.
-- **Innovation**: Introduces a new paradigm in workflow management within LLM frameworks.
-
-### Example Usage
+#### Example Usage
 
 ```python
-from openvela.agents import FluidAgent, SupervisorAgent
+from openvela.agents import Agent, StartAgent, EndAgent, SupervisorAgent, FluidValidator
+from openvela.tasks import Task
+from openvela.workflows import ChainOfThoughtWorkflow
+from openvela.llms import OpenAIModel
 
-# Initialize the fluid agent
-fluid_agent = FluidAgent(
-    settings={"name": "FluidAgent"},
+# Initialize model instance
+model_instance = OpenAIModel(api_key="YOUR_API_KEY", model="gpt-4o-mini")
+
+# Define agent settings with all parameters
+start_settings = {
+    "name": "StartAgent",
+    "prompt": "You are the StartAgent. Begin by outlining the main objectives in detail.",
+    "input": "What are the primary goals for this task? Please be specific."
+}
+middle_settings = {
+    "name": "MiddleAgent",
+    "prompt": "You are the MiddleAgent. Expand on the objectives by providing detailed insights.",
+    "input": "Add further details to the objectives."
+}
+end_settings = {
+    "name": "EndAgent",
+    "prompt": "You are the EndAgent. Conclude by synthesizing all information into a final answer.",
+    "input": "Summarize and integrate all insights."
+}
+
+# Instantiate agents
+start_agent = StartAgent(settings=start_settings, model=model_instance)
+middle_agent = Agent(settings=middle_settings, model=model_instance)
+end_agent = EndAgent(settings=end_settings, model=model_instance)
+
+# Create a FluidValidator instance for output validation
+validator = FluidValidator(settings={"name": "FluidValidator"}, model=model_instance)
+
+# Prepare intermediary agents and the supervisor (using simple mode by default)
+supervisor = SupervisorAgent(
+    settings={"name": "SupervisorAgent", "prompt": "Oversee the workflow and select the next agent in order."},
+    start_agent=start_agent,
+    end_agent=end_agent,
+    agents=[middle_agent],
     model=model_instance
 )
 
-# Initialize the supervisor agent
-supervisor_agent = SupervisorAgent(
-    settings={"name": "SupervisorAgent", "prompt": "Oversee the workflow."},
-    model=model_instance
-)
+# Define the task
+task = Task(prompt="Tell a creative story about a hero overcoming challenges with unexpected twists.")
 
-# Create the workflow
-workflow = FluidChainOfThoughtWorkflow(
+# Initialize and run the workflow with output validation enabled
+workflow = ChainOfThoughtWorkflow(
     task=task,
-    fluid_agent=fluid_agent,
-    supervisor=supervisor_agent
+    agents=[middle_agent],
+    supervisor=supervisor,
+    start_agent=start_agent,
+    end_agent=end_agent,
+    validate_output=True,      # Enable output validation
+    max_attempts=3,            # Maximum attempts for valid output
+    validator=validator        # Provide a custom validator
 )
-
-# Run the workflow
 final_output, memory_id = workflow.run()
-print("Final Output:\n", final_output)
+print("Chain of Thought Final Output:", final_output)
 print("Memory ID:", memory_id)
 ```
 
+### Tree of Thought Workflow
+
+This workflow generates multiple parallel thoughts, evaluates them, and may combine the best outputs.
+
+#### Example Usage
+
+```python
+from openvela.agents import Agent, StartAgent, EndAgent, SupervisorAgent
+from openvela.tasks import Task
+from openvela.workflows import TreeOfThoughtWorkflow
+from openvela.llms import OpenAIModel
+
+# Initialize model instance
+model_instance = OpenAIModel(api_key="YOUR_API_KEY", model="gpt-4o-mini")
+
+# Define agents
+start_agent = StartAgent(settings={
+    "name": "StartAgent",
+    "prompt": "You are the StartAgent. Initiate the task by outlining key points.",
+    "input": "What is the main challenge?"
+}, model=model_instance)
+
+end_agent = EndAgent(settings={
+    "name": "EndAgent",
+    "prompt": "You are the EndAgent. Synthesize all insights into a final answer.",
+    "input": "Provide the final synthesis."
+}, model=model_instance)
+
+middle_agent = Agent(settings={
+    "name": "MiddleAgent",
+    "prompt": "You are the MiddleAgent. Develop multiple ideas from the StartAgent's input.",
+    "input": "Expand on the challenge with several possibilities."
+}, model=model_instance)
+
+supervisor = SupervisorAgent(
+    settings={"name": "SupervisorAgent", "prompt": "Evaluate the generated thoughts and choose the best ones."},
+    start_agent=start_agent,
+    end_agent=end_agent,
+    agents=[middle_agent],
+    model=model_instance
+)
+
+# Define task
+task = Task(prompt="Outline multiple innovative solutions for climate change mitigation.")
+
+# Run Tree of Thought workflow
+workflow = TreeOfThoughtWorkflow(
+    task=task,
+    agents=[middle_agent],
+    supervisor=supervisor,
+    start_agent=start_agent,
+    end_agent=end_agent
+)
+final_output, memory_id = workflow.run()
+print("Tree of Thought Final Output:", final_output)
+print("Memory ID:", memory_id)
+```
+
+### Fluid Chain of Thought Workflow
+
+This workflow dynamically generates agents based on the task description and allows parameters such as `max_attempts` and `max_previous_messages` for adaptive processing.
+
+#### Example Usage
+
+```python
+from openvela.agents import FluidAgent, SupervisorAgent
+from openvela.tasks import Task
+from openvela.workflows import FluidChainOfThoughtWorkflow
+from openvela.llms import OpenAIModel
+
+# Initialize model instance
+model_instance = OpenAIModel(api_key="YOUR_API_KEY", model="gpt-4o-mini")
+
+# FluidAgent generates agents on the fly
+fluid_agent = FluidAgent(settings={"name": "FluidAgent"}, model=model_instance)
+
+# Supervisor for fluid workflows (without predefined agents)
+supervisor = SupervisorAgent(
+    settings={"name": "SupervisorAgent", "prompt": "Guide the fluid workflow and choose the best agent dynamically."},
+    start_agent=None,
+    end_agent=None,
+    agents=[],   # Empty list as FluidAgent generates agents dynamically
+    model=model_instance
+)
+
+# Define task
+task = Task(prompt="Generate an innovative business strategy for a tech startup in a competitive market.")
+
+# Run Fluid Chain of Thought workflow with additional parameters
+workflow = FluidChainOfThoughtWorkflow(
+    task=task,
+    fluid_agent=fluid_agent,
+    supervisor=supervisor,
+    max_attempts=3,            # Maximum iterations for valid output
+    max_previous_messages=5    # Limit on previous messages passed to agents
+)
+final_output, memory_id = workflow.run()
+print("Fluid Chain of Thought Final Output:", final_output)
+print("Memory ID:", memory_id)
+```
+
+### AutoSelectWorkflow
+
+The **AutoSelectWorkflow** dynamically selects the next agent based on the supervisor’s evaluation of the latest output. It is adaptive and supports integrated output validation. In this workflow, the **SupervisorAgent** plays a key role in choosing the next agent using either a sequential or an LLM-driven dynamic approach.  
+Below, we explore how the `agent_type` parameter in the SupervisorAgent affects this selection process.
+
+#### Example Usage
+
+```python
+from openvela.agents import Agent, StartAgent, EndAgent, SupervisorAgent, FluidValidator
+from openvela.tasks import Task
+from openvela.workflows import AutoSelectWorkflow
+from openvela.llms import OpenAIModel
+
+# Initialize model instance
+model_instance = OpenAIModel(api_key="YOUR_API_KEY", model="gpt-4o-mini")
+
+# Define agents
+start_agent = StartAgent(settings={
+    "name": "StartAgent",
+    "prompt": "You are the StartAgent. Begin by asking an open-ended question.",
+    "input": "What is your initial thought on the task?"
+}, model=model_instance)
+
+middle_agent = Agent(settings={
+    "name": "MiddleAgent",
+    "prompt": "You are the MiddleAgent. Process the previous output and add further detail.",
+    "input": "Expand on the idea."
+}, model=model_instance)
+
+end_agent = EndAgent(settings={
+    "name": "EndAgent",
+    "prompt": "You are the EndAgent. Conclude by summarizing all information.",
+    "input": "Provide the final synthesis."
+}, model=model_instance)
+
+# Create a SupervisorAgent in selector mode for dynamic selection
+supervisor = SupervisorAgent(
+    settings={
+      "name": "SupervisorAgent",
+      "prompt": "Dynamically select the next agent based on the current output.",
+      "agent_type": "selector"  # Use "selector" for LLM-driven decision-making
+    },
+    start_agent=start_agent,
+    end_agent=end_agent,
+    agents=[middle_agent],
+    model=model_instance
+)
+
+# Create a FluidValidator for output validation
+validator = FluidValidator(settings={"name": "FluidValidator"}, model=model_instance)
+
+# Define task
+task = Task(prompt="Discuss the impact of artificial intelligence on modern society.")
+
+# Run AutoSelectWorkflow with adaptive agent selection and integrated validation
+workflow = AutoSelectWorkflow(
+    task=task,
+    agents=[middle_agent],
+    supervisor=supervisor,
+    validate_output=True,   # Enable validation loop
+    max_attempts=3,         # Maximum number of iterations
+    validator=validator     # Custom validator instance
+)
+auto_output = workflow.run()
+print("AutoSelectWorkflow Final Output:", auto_output)
+```
+
 ---
 
-## Using the CLI
+## SupervisorAgent: Types and Roles
 
-OpenVela provides a powerful Command Line Interface (CLI) that allows you to interactively set up and run workflows without writing code.
+The **SupervisorAgent** orchestrates the workflow by deciding which agent should process the next piece of information. It supports two primary modes, determined by the `agent_type` parameter:
 
-### Available Commands
+### Simple Mode (`agent_type: "simple"`)
 
-- **Start OpenVela Interface**: Launch the interactive CLI.
-  ```bash
-  openvela
+- **Sequential Selection:**  
+  The supervisor selects the next agent based on the defined order. For example, if the current agent is the StartAgent, it will choose the first intermediary agent; if not, it selects the agent immediately following the current one.
+  
+- **Deterministic Behavior:**  
+  This mode is ideal for workflows with a clear, fixed sequence. It does not involve additional LLM-based reasoning.
+
+- **Example Usage:**
+  ```python
+  supervisor = SupervisorAgent(
+      settings={
+        "name": "SupervisorAgent",
+        "prompt": "Select the next agent in sequence.",
+        "agent_type": "simple"  # Sequential selection mode
+      },
+      start_agent=start_agent,
+      end_agent=end_agent,
+      agents=[middle_agent],
+      model=model_instance
+  )
   ```
-- **Run Workflows**: Execute predefined workflows.
-  ```bash
-  openvela run [workflow-type] [options]
+  
+### Selector Mode (`agent_type: "selector"`)
+
+- **Dynamic, LLM-Driven Decision Making:**  
+  In this mode, the supervisor leverages the language model to analyze the conversation history, the latest output, and the overall task. It then produces a JSON response indicating:
+  - **next_agent:** The selected agent's name (or `"FINISH"` to conclude the workflow).
+  - **next_input:** Detailed instructions or context for the selected agent.
+  - **thinking (optional):** The reasoning behind the decision.
+  
+- **Adaptive and Flexible:**  
+  Selector mode is particularly useful for complex or ambiguous tasks where the optimal next step is not obvious. The dynamic decision-making enables the workflow to adapt by choosing the agent best suited to handle the current context.
+
+- **Example Usage:**
+  ```python
+  supervisor = SupervisorAgent(
+      settings={
+        "name": "SupervisorAgent",
+        "prompt": "Analyze the conversation and select the next agent based on the current output.",
+        "agent_type": "selector"  # Use dynamic, LLM-driven selection
+      },
+      start_agent=start_agent,
+      end_agent=end_agent,
+      agents=[middle_agent],
+      model=model_instance
+  )
   ```
-- **Start Server Mode**: Run OpenVela as a server to accept API requests.
-  ```bash
-  openvela serve [options]
-  ```
-- **Configure Providers**: Set up language model providers like OpenAI, Groq, or Ollama.
-- **Load Agents**: Input paths to agent definition JSON files.
-- **Save Outputs**: Option to save workflow outputs to files.
 
-### Workflow Execution via CLI
+In summary, while **Simple Mode** offers a straightforward, deterministic selection of agents in a fixed sequence, **Selector Mode** provides a dynamic and adaptive mechanism that leverages the language model to guide the workflow based on the evolving context.
 
-When you start the OpenVela interface, you will be guided through the following steps:
+---
 
-1. **Select Workflow Type**: Choose between Chain of Thought, Tree of Thought, or Fluid Chain of Thought workflows.
-2. **Select Provider**: Configure your preferred language model provider.
-3. **Set API Key or Host URL**: Provide necessary credentials for the selected provider.
-4. **Load Agents (if applicable)**: Input the path to your agents JSON file for Chain or Tree workflows.
-5. **Input Task**: Describe the task you want the agents to perform.
-6. **Run Workflow**: Execute the workflow and view the output.
-7. **Save Output**: Optionally save the output to a file.
+## Language Model Integrations
 
-### Examples
+OpenVela abstracts LLM integrations via a common interface. Currently supported models include:
 
-#### Starting the CLI
+### OpenAIModel
+
+```python
+from openvela.llms import OpenAIModel
+
+model = OpenAIModel(api_key="YOUR_API_KEY", model="gpt-4o-mini")
+messages = [{"role": "user", "content": "Hello, world!"}]
+response = model.generate_response(messages)
+print(response)
+```
+
+### GroqModel
+
+```python
+from openvela.llms import GroqModel
+
+model = GroqModel(api_key="YOUR_API_KEY", model="llama-3.3-70b-versatile")
+messages = [{"role": "user", "content": "Explain quantum physics."}]
+response = model.generate_response(messages, format="json")
+print(response)
+```
+
+### OllamaModel
+
+```python
+from openvela.llms import OllamaModel
+
+model = OllamaModel(base_url="http://localhost:11434", model="llama3.2")
+messages = [{"role": "user", "content": "Summarize the latest news."}]
+response = model.generate_response(messages)
+print(response)
+```
+
+---
+
+## Agents
+
+Agents are the building blocks of your workflows. They encapsulate prompts, process inputs, and interact with the language model.
+
+### Basic Agent
+
+```python
+from openvela.agents import Agent
+from openvela.llms import OpenAIModel
+
+model = OpenAIModel(api_key="YOUR_API_KEY", model="gpt-4o-mini")
+agent_settings = {
+    "name": "BasicAgent",
+    "prompt": "You are a basic agent that processes user input.",
+    "input": "What information do you need?"
+}
+agent = Agent(settings=agent_settings, model=model)
+response = agent.generate(max_previous_messages=3)  # Passing extra kwargs
+print(response)
+```
+
+### StartAgent & EndAgent
+
+These agents mark the beginning and end of a workflow.
+
+```python
+from openvela.agents import StartAgent, EndAgent
+from openvela.llms import OpenAIModel
+
+model = OpenAIModel(api_key="YOUR_API_KEY", model="gpt-4o-mini")
+
+start_agent = StartAgent(settings={
+    "name": "StartAgent",
+    "prompt": "You are the StartAgent. Begin by asking a clarifying question.",
+    "input": "What is the task?"
+}, model=model)
+
+end_agent = EndAgent(settings={
+    "name": "EndAgent",
+    "prompt": "You are the EndAgent. Conclude the conversation with a summary.",
+    "input": "Summarize the discussion."
+}, model=model)
+```
+
+### SupervisorAgent
+
+Orchestrates the workflow by selecting the next agent based on the latest output. See the section above for details on the `agent_type` parameter.
+
+```python
+from openvela.agents import SupervisorAgent
+from openvela.llms import OpenAIModel
+
+model = OpenAIModel(api_key="YOUR_API_KEY", model="gpt-4o-mini")
+supervisor = SupervisorAgent(
+    settings={
+      "name": "SupervisorAgent",
+      "prompt": "Select the next best agent based on the latest output.",
+      "agent_type": "selector"  # or "simple" for sequential selection
+    },
+    start_agent=start_agent,
+    end_agent=end_agent,
+    agents=[{"name": "DummyAgent", "prompt": "Dummy", "input": "Dummy"}],  # Example placeholder
+    model=model
+)
+```
+
+### FluidAgent & FluidValidator
+
+FluidAgent dynamically generates agents based on the task. FluidValidator is used to validate the output.
+
+```python
+from openvela.agents import FluidAgent, FluidValidator
+from openvela.llms import OpenAIModel
+
+model = OpenAIModel(api_key="YOUR_API_KEY", model="gpt-4o-mini")
+
+fluid_agent = FluidAgent(settings={"name": "FluidAgent"}, model=model)
+validator = FluidValidator(settings={"name": "FluidValidator"}, model=model)
+
+# FluidAgent can generate agent definitions based on task description
+agents_definitions = fluid_agent.generate_agents_from_task(
+    "Describe a new marketing strategy for a product launch, considering competitive analysis and market trends."
+)
+print("Generated Agent Definitions:", agents_definitions)
+```
+
+### SQLAgent
+
+A specialized agent for generating read-only SQL queries and executing them via SQLAlchemy.
+
+```python
+from openvela.agents import SQLAgent
+from openvela.llms import OpenAIModel
+
+model = OpenAIModel(api_key="YOUR_API_KEY", model="gpt-4o-mini")
+
+sql_agent = SQLAgent(
+    settings={
+        "name": "SQLAgent",
+        "prompt": "Generate a SELECT query based on the user's input.",
+        "input": "Show me the top 10 customers by revenue."
+    },
+    model=model,
+    example_queries=[{"question": "Get all users", "sql_query": "SELECT * FROM users;"}],
+    sql_dialect="postgresql",
+    sqlalchemy_engine_url="postgresql://user:password@localhost/dbname",
+    database_structure="Tables: users, orders, products",
+    formatter_prompt="Format the SQL query results in a neat JSON output."
+)
+
+result = sql_agent.generate()
+print("SQL Query Result:", result)
+```
+
+---
+
+## Memory Management
+
+OpenVela provides a flexible memory management system to store and recall messages across workflows.
+
+### JSON Memory Format & Short-Term Memory
+
+```python
+from openvela.memory import JsonMemoryFormat, JsonShortTermMemory
+
+# Create a JSON memory format instance
+memory_format = JsonMemoryFormat()
+
+# Initialize a short-term memory with a system prompt
+memory = JsonShortTermMemory(prompt="System: This is the base prompt for the workflow.")
+
+# Remember and recall messages
+memory.remember("user", "Hello, how can I help?")
+messages = memory.recall()
+print("Short-Term Memory Messages:", messages)
+```
+
+### Workflow Memory
+
+Keeps track of the conversation history within a workflow.
+
+```python
+from openvela.memory import WorkflowMemory
+
+workflow_memory = WorkflowMemory(memory_id="workflow-123")
+workflow_memory.add_message("AgentName", "assistant", "This is an output message.")
+loaded_messages = workflow_memory.load()
+print("Workflow Memory:", loaded_messages)
+```
+
+---
+
+## Command Line Interface (CLI)
+
+After installing OpenVela via pip, the CLI commands are available:
+
+### Running a Workflow
 
 ```bash
-openvela
+openvela run \
+  --provider openai \
+  --workflow_type cot \
+  --base_url_or_api_key YOUR_API_KEY \
+  --model gpt-4o-mini \
+  --agents path/to/agents.json \
+  --task "Draft a creative story about adventure and discovery." \
+  --options '{"max_attempts": 3, "other_option": "value"}'
 ```
 
-#### Example Session
-
-```plaintext
-========================================
-      Welcome to OpenVela Interface
-========================================
-
-Select the type of workflow:
-1. Chain of Thought
-2. Tree of Thought
-3. Fluid Chain of Thought
-
-Enter the number corresponding to your choice: 3
-
-Select the language model provider:
-1. Groq
-2. Ollama
-3. OpenAI
-
-Enter the number corresponding to your choice: 3
-
-Enter your API key for OpenAI: sk-...
-
-Enter the task description:
->> Develop a strategic plan to reduce carbon emissions in urban areas.
-
-Running the workflow. Please wait...
-
-========================================
-               Final Output
-========================================
-[Final output generated by the workflow]
-
-Would you like to save the output to a file? (y/n): y
-Enter the filename to save the output (e.g., 'output.txt'): strategy_plan.txt
-Output saved to strategy_plan.txt
-```
-
----
-
-## Running OpenVela as a Server
-
-OpenVela can run in server mode, allowing you to send API requests to execute workflows programmatically. This is useful for integrating OpenVela into other applications or services.
-
-### Starting the Server
-
-To start the OpenVela server, use the `openvela serve` command:
+### Running the Server
 
 ```bash
 openvela serve --host 0.0.0.0 --port 8000
 ```
 
-**Options:**
-
-- `--host`: Specify the host IP address (default is `127.0.0.1`).
-- `--port`: Specify the port number (default is `8000`).
-
-### Making API Requests
-
-Once the server is running, you can make API requests to execute workflows.
-
-**Endpoint:**
-
-- `POST /api/v1/workflow`
-
-**Request Body:**
-
-- `workflow_type`: Type of the workflow (`chain`, `tree`, `fluid`).
-- `provider`: Language model provider (`openai`, `groq`, `ollama`).
-- `api_key`: API key or credentials for the provider.
-- `task_description`: Description of the task.
-- `agents_definitions` (optional): Agent definitions for Chain or Tree workflows.
-- `options` (optional): Additional options for the workflow.
-
-### API Request Examples
-
-#### Example Request using `curl`
+### Launching the Interactive Interface
 
 ```bash
-curl -X POST http://localhost:8000/api/v1/workflow \
--H "Content-Type: application/json" \
--d '{
-  "workflow_type": "fluid",
-  "provider": "openai",
-  "api_key": "your-openai-api-key",
-  "task_description": "Create a detailed project plan for developing a new mobile application."
-}'
-```
-
-#### Example Response
-
-```json
-{
-  "status": "success",
-  "final_output": "[Generated project plan]",
-  "memory_id": "123e4567-e89b-12d3-a456-426614174000"
-}
-```
-
-#### Example with Agents Definitions
-
-For Chain or Tree workflows, include `agents_definitions`:
-
-```bash
-curl -X POST http://localhost:8000/api/v1/workflow \
--H "Content-Type: application/json" \
--d '{
-  "workflow_type": "chain",
-  "provider": "openai",
-  "api_key": "your-openai-api-key",
-  "task_description": "Analyze market trends for renewable energy.",
-  "agents_definitions": [
-    {
-      "name": "StartAgent",
-      "prompt": "You are the StartAgent. Begin the analysis.",
-      "input": "Initiate market trend analysis."
-    },
-    {
-      "name": "AnalysisAgent",
-      "prompt": "You are the AnalysisAgent. Provide detailed insights.",
-      "input": "Analyze the data provided by StartAgent."
-    },
-    {
-      "name": "EndAgent",
-      "prompt": "You are the EndAgent. Summarize the findings.",
-      "input": "Conclude the analysis."
-    }
-  ]
-}'
+openvela interface
 ```
 
 ---
 
-## Making Requests
+## Server API
 
-OpenVela allows you to make requests to language models via agents within workflows. You can interact programmatically or through the CLI.
+The server (built with FastAPI) exposes two endpoints:
 
-### Request Structure
+- **`/run_workflow`**: Accepts workflow configuration and returns the workflow output.
+- **`/completion`**: Accepts messages and returns a language model completion.
 
-A request in OpenVela typically involves:
+### Example Request
 
-- **Messages**: A list of conversation messages between the user and agents.
-- **Files (Optional)**: Any files that need to be processed.
-- **Tools (Optional)**: Tools that agents might use during processing.
-- **Format (Optional)**: Desired response format (e.g., JSON).
+```bash
+curl -X POST "http://localhost:8000/run_workflow" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "provider": "openai",
+    "workflow_type": "cot",
+    "base_url_or_api_key": "YOUR_API_KEY",
+    "model": "gpt-4o-mini",
+    "options": {"max_attempts": 3},
+    "agents": [ ... ],  // JSON array of agent definitions
+    "task": "Explain the theory of relativity."
+  }'
+```
 
-### Request Examples
+---
 
-#### Programmatic Request
+## Advanced Examples Using All Parameters
+
+This section combines various parameters from workflows, agents, memory, CLI, and LLM integrations to demonstrate a comprehensive use case.
+
+### Comprehensive Workflow Example
 
 ```python
-from openvela.agents import Agent
+from openvela.agents import (
+    Agent, StartAgent, EndAgent, SupervisorAgent, FluidAgent, FluidValidator, SQLAgent
+)
+from openvela.tasks import Task
+from openvela.workflows import (
+    ChainOfThoughtWorkflow, TreeOfThoughtWorkflow, FluidChainOfThoughtWorkflow, AutoSelectWorkflow
+)
+from openvela.memory import JsonShortTermMemory, WorkflowMemory
 from openvela.llms import OpenAIModel
 
-# Initialize the language model
-model_instance = OpenAIModel(api_key='your-openai-api-key')
+# Initialize model with all parameters
+model_instance = OpenAIModel(api_key="YOUR_API_KEY", model="gpt-4o-mini")
 
-# Create an agent
-agent = Agent(
-    settings={"name": "Assistant", "prompt": "You are a helpful assistant."},
+# Initialize memory for agents and workflow
+short_term_memory = JsonShortTermMemory(prompt="System: Base prompt for conversation.")
+workflow_memory = WorkflowMemory(memory_id="advanced-workflow-001")
+
+# Define detailed agent settings with extra options
+start_settings = {
+    "name": "StartAgent",
+    "prompt": "You are the StartAgent. Begin by outlining the objectives in detail.",
+    "input": "What is the initial strategy?"
+}
+middle_settings = {
+    "name": "MiddleAgent",
+    "prompt": "You are the MiddleAgent. Develop ideas based on the initial strategy.",
+    "input": "Provide deeper analysis."
+}
+end_settings = {
+    "name": "EndAgent",
+    "prompt": "You are the EndAgent. Conclude by synthesizing all information.",
+    "input": "Summarize the final output."
+}
+
+# Instantiate agents with memory and additional options
+start_agent = StartAgent(settings=start_settings, model=model_instance)
+middle_agent = Agent(settings=middle_settings, model=model_instance, options={"extra_detail": True})
+end_agent = EndAgent(settings=end_settings, model=model_instance)
+
+# Create a supervisor in selector mode (LLM-driven decision making)
+supervisor = SupervisorAgent(
+    settings={"name": "SupervisorAgent", "prompt": "Analyze conversation history and select the next agent.", "agent_type": "selector"},
+    start_agent=start_agent,
+    end_agent=end_agent,
+    agents=[middle_agent],
     model=model_instance
 )
 
-# Define messages
-messages = [
-    {"role": "user", "content": "Can you explain the concept of photosynthesis?"}
-]
+# Create a FluidValidator for workflows that support output validation
+validator = FluidValidator(settings={"name": "FluidValidator"}, model=model_instance)
 
-# Generate response
-response = agent.model.generate_response(messages)
-print(response)
-```
+# Define the task with a detailed description
+task = Task(prompt="Develop a comprehensive marketing strategy for a new product launch, considering market trends and competitor analysis.")
 
-#### Request with Files and Tools
-
-```python
-from openvela.agents import Agent
-from openvela.llms import OpenAIModel
-from openvela.tools import AIFunctionTool
-
-# Initialize the model
-model_instance = OpenAIModel(api_key='your-openai-api-key')
-
-# Define a tool
-summarizer_tool = AIFunctionTool(
-    type="summarizer",
-    function={
-        "name": "SummarizeText",
-        "description": "Summarizes the provided text.",
-        "parameters": {"text": "str"}
-    }
+# Example 1: Run a Chain of Thought Workflow with validation
+cot_workflow = ChainOfThoughtWorkflow(
+    task=task,
+    agents=[middle_agent],
+    supervisor=supervisor,
+    start_agent=start_agent,
+    end_agent=end_agent,
+    validate_output=True,
+    max_attempts=3,
+    validator=validator
 )
+cot_output, cot_memory_id = cot_workflow.run()
+print("Chain of Thought Output:", cot_output)
 
-# Create an agent
-agent = Agent(
-    settings={"name": "Assistant", "prompt": "You are a summarization assistant."},
+# Example 2: Run a Fluid Chain of Thought Workflow with dynamic agent generation
+fluid_workflow = FluidChainOfThoughtWorkflow(
+    task=task,
+    fluid_agent=FluidAgent(settings={"name": "FluidAgent"}, model=model_instance),
+    supervisor=supervisor,
+    max_attempts=3,
+    max_previous_messages=5
+)
+fluid_output, fluid_memory_id = fluid_workflow.run()
+print("Fluid Chain of Thought Output:", fluid_output)
+
+# Example 3: Run an AutoSelectWorkflow with adaptive agent selection and integrated validation
+autoselect_workflow = AutoSelectWorkflow(
+    task=task,
+    agents=[middle_agent],
+    supervisor=supervisor,
+    validate_output=True,
+    max_attempts=3,
+    validator=validator
+)
+auto_output = autoselect_workflow.run()
+print("AutoSelectWorkflow Output:", auto_output)
+
+# Example 4: Use SQLAgent to generate a read-only SQL query
+sql_agent = SQLAgent(
+    settings={
+        "name": "SQLAgent",
+        "prompt": "Generate a SELECT query based on the user's input.",
+        "input": "Retrieve the top 5 products by sales."
+    },
     model=model_instance,
-    tools=[summarizer_tool]
+    example_queries=[{"question": "List all products", "sql_query": "SELECT * FROM products;"}],
+    sql_dialect="postgresql",
+    sqlalchemy_engine_url="postgresql://user:password@localhost/dbname",
+    database_structure="Tables: products, sales, customers",
+    formatter_prompt="Format the SQL query results in a well-structured JSON format."
 )
-
-# Define messages and files
-messages = [
-    {"role": "user", "content": "Please summarize the content of this document."}
-]
-files = [{"type": "text", "path": "document.txt"}]
-
-# Generate response using the tool
-response = agent.model.generate_response(messages, files=files, tools=[summarizer_tool], tool_choice="SummarizeText")
-print(response)
+sql_result = sql_agent.generate()
+print("SQLAgent Result:", sql_result)
 ```
-
----
-
-## Language Model Providers
-
-OpenVela supports integration with various LLM providers:
-
-- **OpenAI**: Utilize models like GPT-3 and GPT-4.
-- **Groq**: Interface with Groq models for advanced processing.
-- **Ollama**: Connect with Ollama models for specialized tasks.
-
-You can select and configure providers based on your requirements.
-
-**Setting Up Providers:**
-
-- **OpenAI**:
-  ```python
-  from openvela.llms import OpenAIModel
-
-  model_instance = OpenAIModel(api_key='your-openai-api-key')
-  ```
-- **Groq**:
-  ```python
-  from openvela.llms import GroqModel
-
-  model_instance = GroqModel(api_key='your-groq-api-key')
-  ```
-- **Ollama**:
-  ```python
-  from openvela.llms import OllamaModel
-
-  model_instance = OllamaModel(host='localhost', port=11434)
-  ```
-
----
-
-## Advanced Usage
-
-- **Custom Agents**: Extend the `Agent` class to create agents with custom behaviors.
-- **Memory Management**: Utilize `WorkflowMemory` and `AgentMemory` for complex state management.
-- **Tool Integration**: Define and use tools within agents to perform specific actions.
-- **Error Handling**: Implement robust error handling in workflows and agents.
-- **Logging Configuration**: Customize logging settings for debugging and monitoring.
-- **Deep Dive into Fluid Chain of Thoughts**: Explore the mechanics of dynamic agent generation and adaptive workflows.
 
 ---
 
 ## Contributing
 
-We welcome contributions from the community! If you're interested in improving OpenVela, please follow these steps:
-
-1. Fork the repository.
-2. Create a new branch for your feature or bugfix.
-3. Write clear commit messages and test your changes.
-4. Submit a pull request with a detailed description.
-
-Please read our [Contributing Guidelines](CONTRIBUTING.md) for more information.
+Contributions are welcome! Please refer to the [CONTRIBUTING.md](CONTRIBUTING.md) file for guidelines on how to contribute to OpenVela.
 
 ---
 
 ## License
 
-OpenVela is licensed under the [MIT License](LICENSE). You are free to use, modify, and distribute this software in accordance with the license terms.
+OpenVela is released under the [MIT License](LICENSE).
 
 ---
 
-## Contact
-
-For questions, suggestions, or feedback, please reach out to us:
-
-- **Email**: hello@webera.com
-- **GitHub Issues**: [Create an Issue](https://github.com/weberaAI/openvela/issues)
-
-We'd love to hear from you!
-
----
-
-Thank you for choosing OpenVela. We hope this framework helps you create powerful and intelligent workflows with ease. Experience the innovation of the Fluid Chain of Thoughts and elevate your projects to new heights. Happy coding!
+Happy coding and enjoy building agentic workflows with OpenVela!
