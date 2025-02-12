@@ -381,7 +381,6 @@ class AutoSelectWorkflow(Workflow):
             #     f"Supervisor chose agent: {next_agent_name} with input: {next_input}"
             # )
 
-
             # If it says FINISH right away, we are done
             if next_agent_name == "FINISH":
                 logging.info(
@@ -393,7 +392,6 @@ class AutoSelectWorkflow(Workflow):
             output_dict = self._run_agent_chain(next_agent_name, next_input, **kwargs)
 
             # logging.info(f"Agent chain returned: {output_dict}")
-
 
             if output_dict["next_agent"] == "FINISH":
                 return output_dict["output"]
@@ -412,11 +410,7 @@ class AutoSelectWorkflow(Workflow):
            }
         """
 
-        print(
-            f"Starting agent chain with {start_agent_name}, initial input: {agent_input}"
-        )
         current_agent = [a for a in self.agents if a.name == start_agent_name]
-        print(current_agent)
 
         if not current_agent:
             logging.warning(
@@ -427,12 +421,10 @@ class AutoSelectWorkflow(Workflow):
 
         # Clear memory for the chain run
 
-
         logging.debug("Memory cleared at the start of agent chain.")
 
         while True:
             # Let the current agent process
-
 
             current_agent.input = agent_input
             output = current_agent.generate(**kwargs)
@@ -441,7 +433,6 @@ class AutoSelectWorkflow(Workflow):
             if output == "FINISH":
                 logging.info(f"Agent '{current_agent.name}' indicated FINISH.")
                 return {"next_agent": "FINISH", "output": agent_input}
-
 
             # Otherwise, let the supervisor pick the next agent
             decision = self.supervisor.choose_next_agent(current_agent, output)
@@ -462,10 +453,8 @@ class AutoSelectWorkflow(Workflow):
                 return {"next_agent": "FINISH", "output": next_input}
             current_agent = next_agent[0]
 
-
             # Update agent_input for the next iteration
             agent_input = next_input
-
 
             # Update memory
 
