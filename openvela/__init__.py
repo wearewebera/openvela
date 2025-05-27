@@ -1,5 +1,37 @@
 # __init__.py
 
+# Core components (new)
+from openvela.core import (
+    # Configuration
+    AgentConfig,
+    WorkflowConfig,
+    ModelConfig,
+    # Types
+    AgentType,
+    WorkflowType,
+    ModelProvider,
+    # Exceptions
+    OpenVelaError,
+    ConfigurationError,
+    AgentError,
+    WorkflowError,
+    ModelError,
+    MemoryError,
+    ValidationError,
+    FactoryError,
+    # Protocols
+    MemoryProtocol,
+    ModelProtocol,
+    AgentProtocol,
+    WorkflowProtocol,
+    # Factories
+    AgentFactory,
+    WorkflowFactory,
+    ModelFactory,
+    auto_register_factories,
+)
+
+# Legacy components (existing)
 from openvela.agents import Agent, EndAgent, FluidAgent, StartAgent, SupervisorAgent
 from openvela.files import File, OpenVelaAudioFile, OpenVelaImageFile
 from openvela.llms import GroqModel, Model, OllamaModel, OpenAIModel
@@ -24,6 +56,30 @@ from openvela.workflows import (
 )
 
 __all__ = [
+    # Core (new)
+    "AgentConfig",
+    "WorkflowConfig", 
+    "ModelConfig",
+    "AgentType",
+    "WorkflowType",
+    "ModelProvider",
+    "OpenVelaError",
+    "ConfigurationError",
+    "AgentError",
+    "WorkflowError",
+    "ModelError",
+    "MemoryError",
+    "ValidationError",
+    "FactoryError",
+    "MemoryProtocol",
+    "ModelProtocol",
+    "AgentProtocol",
+    "WorkflowProtocol",
+    "AgentFactory",
+    "WorkflowFactory",
+    "ModelFactory",
+    "auto_register_factories",
+    # Legacy (existing)
     "File",
     "OpenVelaAudioFile",
     "OpenVelaImageFile",

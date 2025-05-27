@@ -3,6 +3,19 @@
 
 OpenVela is an open‐source Python library for designing and executing **agentic workflows**. It leverages modern language models to create dynamic, interactive, and multi‐agent systems that collaboratively solve complex tasks. OpenVela supports multiple workflow paradigms—including Chain of Thought, Tree of Thought, Fluid Chain of Thought, and AutoSelect workflows—as well as a variety of agents, memory management techniques, and integrations with popular language model providers such as OpenAI, Groq, and Ollama.
 
+## 🆕 New in OpenVela: Modern Python Architecture
+
+OpenVela now features a **modern, type-safe architecture** with improved developer experience:
+
+- **🔒 Type Safety**: Pydantic models with automatic validation
+- **🏭 Factory Pattern**: Clean object creation with built-in validation  
+- **🎯 Protocol-Based Design**: Interface segregation for better testability
+- **🎨 Rich CLI**: Beautiful terminal output with Typer and Rich
+- **📋 Comprehensive Docs**: Auto-generated documentation from code
+- **🔄 Backward Compatible**: Legacy patterns continue to work
+
+> **📖 See the [ROADMAP.md](ROADMAP.md) for detailed information about improvements and migration plans.**
+
 > **Note:** When you run `pip install openvela`, you install the OpenVela CLI, which provides the following commands:
 > - `openvela serve` – Run the API server.
 > - `openvela run [parameters]` – Execute a workflow with custom parameters.
@@ -16,25 +29,27 @@ OpenVela is an open‐source Python library for designing and executing **agenti
 2. [Features](#features)
 3. [Installation](#installation)
 4. [Quick Start Guide](#quick-start-guide)
-5. [Workflows](#workflows)
+5. [🆕 Modern Usage (Type-Safe)](#-modern-usage-type-safe)
+6. [Workflows](#workflows)
     - [Chain of Thought Workflow](#chain-of-thought-workflow)
     - [Tree of Thought Workflow](#tree-of-thought-workflow)
     - [Fluid Chain of Thought Workflow](#fluid-chain-of-thought-workflow)
     - [AutoSelectWorkflow](#autoselectworkflow)
-6. [SupervisorAgent: Types and Roles](#supervisoragent-types-and-roles)
-7. [Language Model Integrations](#language-model-integrations)
-8. [Agents](#agents)
+7. [SupervisorAgent: Types and Roles](#supervisoragent-types-and-roles)
+8. [Language Model Integrations](#language-model-integrations)
+9. [Agents](#agents)
     - [Basic Agent](#basic-agent)
     - [StartAgent & EndAgent](#startagent--endagent)
     - [SupervisorAgent](#supervisoragent)
     - [FluidAgent & FluidValidator](#fluidagent--fluidvalidator)
     - [SQLAgent](#sqlagent)
-9. [Memory Management](#memory-management)
-10. [Command Line Interface (CLI)](#command-line-interface-cli)
-11. [Server API](#server-api)
-12. [Advanced Examples Using All Parameters](#advanced-examples-using-all-parameters)
-13. [Contributing](#contributing)
-14. [License](#license)
+10. [Memory Management](#memory-management)
+11. [Command Line Interface (CLI)](#command-line-interface-cli)
+12. [Server API](#server-api)
+13. [Advanced Examples Using All Parameters](#advanced-examples-using-all-parameters)
+14. [📚 Documentation & Resources](#-documentation--resources)
+15. [Contributing](#contributing)
+16. [License](#license)
 
 ---
 
@@ -119,6 +134,121 @@ Here’s a minimal example to get you started with a Chain of Thought workflow u
 3. **View the Output**
 
    After the workflow completes, the final output and memory ID will be displayed on screen and optionally saved to a file.
+
+---
+
+## 🆕 Modern Usage (Type-Safe)
+
+OpenVela now supports modern, type-safe patterns alongside the legacy dictionary-based approach. The new patterns provide better IDE support, automatic validation, and clearer error messages.
+
+### Type-Safe Configuration
+
+```python
+from openvela import (
+    AgentConfig, WorkflowConfig, ModelConfig,
+    AgentType, WorkflowType, ModelProvider,
+    AgentFactory, WorkflowFactory, ModelFactory,
+    auto_register_factories
+)
+
+# Initialize factories
+auto_register_factories()
+
+# Type-safe model configuration
+model_config = ModelConfig(
+    provider=ModelProvider.OPENAI,
+    model_name="gpt-4o-mini", 
+    api_key="your-api-key-here",
+    temperature=0.7
+)
+
+# Type-safe agent configuration with validation
+agent_config = AgentConfig(
+    name="AnalysisAgent",
+    prompt="You are an expert analyst. Provide detailed insights.",
+    input="Analyze the given information thoroughly.",
+    agent_type=AgentType.SIMPLE,
+    options={"max_tokens": 1000}
+)
+
+# Type-safe workflow configuration
+workflow_config = WorkflowConfig(
+    type=WorkflowType.CHAIN_OF_THOUGHT,
+    validate_output=True,
+    max_attempts=3
+)
+```
+
+### Factory-Based Object Creation
+
+```python
+# Create objects using factories with automatic validation
+model = ModelFactory.create_model(model_config)
+agent = AgentFactory.create_agent(agent_config, model)
+
+# Create multiple agents
+agents = [
+    AgentFactory.create_from_dict({
+        "name": "StartAgent",
+        "prompt": "Begin the analysis",
+        "input": "What should we focus on?",
+        "agent_type": "simple"
+    }, model),
+    AgentFactory.create_from_dict({
+        "name": "EndAgent", 
+        "prompt": "Provide final conclusions",
+        "input": "Synthesize all findings",
+        "agent_type": "simple"
+    }, model)
+]
+
+# Create workflow with automatic dependency injection
+workflow = WorkflowFactory.create_workflow(
+    workflow_config,
+    agents=agents[1:-1],
+    supervisor=agents[0],
+    start_agent=agents[0],
+    end_agent=agents[-1],
+    task_prompt="Analyze market trends for emerging technologies"
+)
+
+# Execute with proper error handling
+try:
+    result, memory_id = workflow.run()
+    print(f"Success! Result: {result}")
+except Exception as e:
+    print(f"Error: {e}")
+```
+
+### Modern CLI Commands
+
+```bash
+# Initialize a new project with examples
+openvela init my-project
+
+# Validate configuration files
+openvela validate agents.json --details
+
+# Run with rich terminal output
+openvela run \
+  --workflow_type cot \
+  --agents_file agents.json \
+  --task "Your task description" \
+  --provider openai \
+  --model gpt-4o-mini \
+  --verbose
+```
+
+### Benefits of New Patterns
+
+- **🔍 Early Error Detection**: Catch configuration errors before runtime
+- **💡 Better IDE Support**: Full autocompletion and type checking
+- **📝 Self-Documenting**: Configuration models serve as documentation
+- **🛡️ Safer Refactoring**: Type system prevents breaking changes
+- **🎯 Cleaner Code**: Factory pattern reduces boilerplate
+
+> **📖 For complete examples, see [examples/improved_usage.py](examples/improved_usage.py)**  
+> **🗺️ For migration guidance, see [ROADMAP.md](ROADMAP.md)**
 
 ---
 
@@ -783,6 +913,48 @@ sql_agent = SQLAgent(
 sql_result = sql_agent.generate()
 print("SQLAgent Result:", sql_result)
 ```
+
+---
+
+## 📚 Documentation & Resources
+
+### 🗺️ Architecture & Development
+- **[ROADMAP.md](ROADMAP.md)** - Development roadmap and architecture improvements
+- **[CLAUDE.md](CLAUDE.md)** - Architecture overview and development guidelines
+- **[examples/improved_usage.py](examples/improved_usage.py)** - Comprehensive examples of new patterns
+
+### 🚀 Migration & Upgrade
+- **Type-Safe Configuration**: Migrate from dict-based to Pydantic models
+- **Factory Pattern**: Use factories for cleaner object creation
+- **Modern CLI**: Leverage new CLI features for better developer experience
+- **Error Handling**: Comprehensive exception hierarchy with rich context
+
+### 🛠️ Development Tools
+```bash
+# Validate your configuration
+openvela validate agents.json --details
+
+# Initialize new projects
+openvela init my-workflow-project
+
+# Modern CLI with rich output
+openvela run --verbose --workflow_type cot --agents_file agents.json --task "Your task"
+```
+
+### 📖 Learning Resources
+- **Quick Start**: Follow the [Quick Start Guide](#quick-start-guide) for basic usage
+- **Modern Patterns**: See [Modern Usage](#-modern-usage-type-safe) for type-safe approaches
+- **Legacy Support**: All existing patterns continue to work seamlessly
+
+### 🆕 What's New
+- ✅ **Type Safety**: Pydantic models with automatic validation
+- ✅ **Factory Pattern**: Clean object creation with built-in validation
+- ✅ **Protocol-Based Design**: Better testability and loose coupling
+- ✅ **Modern CLI**: Rich terminal output with Typer and Rich
+- ✅ **Comprehensive Docs**: Auto-generated documentation from code
+- ✅ **Backward Compatible**: Legacy patterns continue to work
+
+> **💡 Pro Tip**: Start with the new type-safe patterns for better IDE support and early error detection, but feel free to mix with legacy patterns during migration.
 
 ---
 
