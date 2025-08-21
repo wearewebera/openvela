@@ -1,0 +1,19 @@
+name: Add Issues and PRs to Project
+
+on:
+  issues:
+    types: [opened]
+  pull_request:
+    types: [opened]
+
+permissions:
+  issues: write
+  pull-requests: write
+
+jobs:
+  add-to-project:
+    uses: wearewebera/webera/.github/workflows/add-to-project.yml@main
+    with:
+      project-id: "33"
+    secrets:
+      ADD_TO_PROJECT_PAT: ${{ secrets.ADD_TO_PROJECT_PAT }}
